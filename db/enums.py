@@ -73,6 +73,21 @@ class JobStatus(str, Enum):
     ERROR = "ERROR"
 
 
+class TrendObservationStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    ARCHIVED = "ARCHIVED"
+
+
+class ContentOpportunityStatus(str, Enum):
+    NEW = "NEW"
+    REVIEWED = "REVIEWED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    USED = "USED"
+
+
 class FestivalPostStatus(str, Enum):
     PENDING = "PENDING"
     GENERATED = "GENERATED"

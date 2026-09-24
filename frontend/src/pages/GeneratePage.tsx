@@ -27,7 +27,7 @@ function festivalName(item: Festival): string {
 export function GeneratePage() {
   const { push } = useToast();
   const [params] = useSearchParams();
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(params.get("prompt") ?? "");
   const [festival, setFestival] = useState(params.get("festival") ?? "");
   const [productId, setProductId] = useState(params.get("product") ?? "");
   const [businessName, setBusinessName] = useState("");

@@ -13,7 +13,9 @@ def brand_tools(gateway: RepositoryGateway) -> list[MCPTool]:
     async def get_brand_guidelines(tenant: TenantContext, arguments: dict[str, Any]) -> dict[str, Any]:
         del arguments
         guidelines = gateway.brand_guidelines(tenant.tenant_id)
-        return {"found": guidelines is not None, "guidelines": guidelines}
+        assets = [item.public() for item in gateway.brand_assets(tenant.tenant_id)]
+        found = guidelines is not None or bool(assets)
+        return {"found": found, "guidelines": guidelines, "assets": assets}
 
     return [
         MCPTool(

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.crypto import TokenEncryptor
-from db.exceptions import DuplicateRecordError
 from db.asset_repositories import (
     BrandGuidelineRepository,
     BrandProfileRepository,
@@ -15,6 +14,8 @@ from db.asset_repositories import (
     ProductAssetRepository,
     ProductRepository,
 )
+from db.crypto import TokenEncryptor
+from db.exceptions import DuplicateRecordError
 from db.repositories import (
     AgentEventRepository,
     AgentTaskRepository,
@@ -32,7 +33,17 @@ from db.repositories import (
     commit_or_raise,
 )
 from db.session import get_session_factory
-from sqlalchemy.exc import IntegrityError
+from db.trend_repositories import (
+    AccountSnapshotRepository,
+    ContentOpportunityRepository,
+    InsightSnapshotRepository,
+    MediaSnapshotRepository,
+    TrendEvidenceRepository,
+    TrendObservationRepository,
+    TrendReportRepository,
+    TrendSourceRepository,
+)
+from db.trend_retention import TrendRetention
 
 
 class Database:
@@ -59,6 +70,15 @@ class Database:
         self.brand_guidelines = BrandGuidelineRepository(session)
         self.products = ProductRepository(session)
         self.product_assets = ProductAssetRepository(session)
+        self.trend_sources = TrendSourceRepository(session)
+        self.trend_observations = TrendObservationRepository(session)
+        self.trend_evidence = TrendEvidenceRepository(session)
+        self.account_snapshots = AccountSnapshotRepository(session)
+        self.media_snapshots = MediaSnapshotRepository(session)
+        self.insight_snapshots = InsightSnapshotRepository(session)
+        self.trend_reports = TrendReportRepository(session)
+        self.content_opportunities = ContentOpportunityRepository(session)
+        self.trend_retention = TrendRetention(session)
         # Aliases used by auth / scheduler / platform agents.
         self.business = self.business_profiles
         self.automation = self.automation_settings

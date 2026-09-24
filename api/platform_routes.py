@@ -37,6 +37,12 @@ from scheduler.scheduler import AutomationRunner
 router = APIRouter(tags=["platform"])
 
 
+def _trend_notification(db: Session, user_id: str) -> dict | None:
+    from scheduler.trend_store import trend_dashboard_payload
+
+    return trend_dashboard_payload(db, user_id)
+
+
 def _settings(request: Request) -> Settings:
     return request.app.state.settings
 
@@ -468,6 +474,7 @@ def dashboard(request: Request, user: User = Depends(require_password_ok), db: S
         "recent_posts": [_post_payload(item, image_map.get(item.generated_image_id or "")) for item in post_rows],
         "upcoming_festival": upcoming,
         "next_scheduled_post": automation.daily_post_time if automation.daily_enabled else None,
+        "trend_intelligence": _trend_notification(db, user.id),
         "recent_activity": [
             {"label": f"Post {item.status}", "at": item.created_at.isoformat() if item.created_at else None}
             for item in post_rows[:5]

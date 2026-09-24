@@ -20,7 +20,7 @@ def is_logo(asset: AssetView) -> bool:
 
 
 def require_owned_asset(gateway: RepositoryGateway, tenant_id: str, image_id: str) -> AssetView:
-    asset = gateway.owned_asset(tenant_id, image_id)
+    asset = gateway.owned_reference(tenant_id, image_id)
     if asset is None:
         raise AssetAccessDenied("Asset is not available for this tenant.")
     return asset
@@ -34,6 +34,9 @@ def asset_tools(gateway: RepositoryGateway) -> list[MCPTool]:
             if not is_logo(asset):
                 raise AssetAccessDenied("Asset is not available for this tenant.")
             return {"found": True, "asset": asset.public()}
+        catalog = gateway.company_logo(tenant.tenant_id)
+        if catalog is not None:
+            return {"found": True, "asset": catalog.public()}
         for asset in gateway.list_assets(tenant.tenant_id):
             if is_logo(asset):
                 return {"found": True, "asset": asset.public()}

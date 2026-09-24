@@ -375,6 +375,58 @@ class InstagramPostRepository:
             stmt = stmt.limit(limit)
         return list(self.session.scalars(stmt))
 
+    def list_recent(
+        self,
+        user_id: str,
+        *,
+        limit: int,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        published_only: bool = False,
+    ) -> list[InstagramPost]:
+        stmt: Select[tuple[InstagramPost]] = select(InstagramPost).where(InstagramPost.user_id == user_id)
+        if published_only:
+            stmt = stmt.where(InstagramPost.status == PostStatus.PUBLISHED.value)
+        if start is not None:
+            column = InstagramPost.published_at if published_only else InstagramPost.created_at
+            stmt = stmt.where(column >= start)
+        if end is not None:
+            column = InstagramPost.published_at if published_only else InstagramPost.created_at
+            stmt = stmt.where(column < end)
+        order = InstagramPost.published_at if published_only else InstagramPost.created_at
+        stmt = stmt.order_by(order.desc()).limit(limit)
+        return list(self.session.scalars(stmt))
+
+    def latest_published_at(self, user_id: str) -> datetime | None:
+        return self.session.scalar(
+            select(func.max(InstagramPost.published_at)).where(
+                InstagramPost.user_id == user_id,
+                InstagramPost.status == PostStatus.PUBLISHED.value,
+            )
+        )
+
+    def count_grouped(
+        self,
+        user_id: str,
+        column: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        published_only: bool = False,
+    ) -> list[tuple[str, int]]:
+        field = InstagramPost.post_type if column == "post_type" else InstagramPost.status
+        stmt = select(field, func.count()).where(InstagramPost.user_id == user_id)
+        if published_only:
+            stmt = stmt.where(InstagramPost.status == PostStatus.PUBLISHED.value)
+        moment = InstagramPost.published_at if published_only else InstagramPost.created_at
+        if start is not None:
+            stmt = stmt.where(moment >= start)
+        if end is not None:
+            stmt = stmt.where(moment < end)
+        stmt = stmt.group_by(field)
+        rows = self.session.execute(stmt).all()
+        return [(str(label), int(count)) for label, count in rows]
+
     def has_published_daily_post(
         self, user_id: str, instagram_account_id: str | None, scheduled_date: date
     ) -> bool:

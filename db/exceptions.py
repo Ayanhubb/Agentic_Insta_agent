@@ -40,6 +40,10 @@ class DuplicateRecordError(PersistenceError):
             entity = "products"
             constraint = "uq_products_user_sku"
             message = "A product with this SKU already exists."
+        elif "trend_observations" in lowered and "external_id" in lowered:
+            entity = "trend_observations"
+            constraint = "uq_trend_observations_source_external"
+            message = "This trend observation was already stored for the source."
         elif "festival_campaigns" in lowered:
             entity = "festival_campaigns"
             constraint = "uq_festival_campaigns_user_name_year"

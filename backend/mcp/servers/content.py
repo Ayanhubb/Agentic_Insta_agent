@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.content_agent import DiversityPolicy
 from backend.mcp.registry import MCPTool, object_schema
 from backend.mcp.sources import RepositoryGateway
 from backend.mcp.tenant_isolation import TenantContext
@@ -14,6 +13,8 @@ from models.content import ContentMode, ContentType
 def content_tools(gateway: RepositoryGateway) -> list[MCPTool]:
     async def get_content_rules(tenant: TenantContext, arguments: dict[str, Any]) -> dict[str, Any]:
         del arguments
+        from agent.content_agent import DiversityPolicy
+
         policy = DiversityPolicy()
         return {
             "content_types": [item.value for item in ContentType],

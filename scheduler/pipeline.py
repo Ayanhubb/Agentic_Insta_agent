@@ -75,6 +75,7 @@ class CampaignPipeline:
         festival: dict[str, Any] | None = None,
         festival_campaign_id: str | None = None,
         festival_sequence: int | None = None,
+        user_prompt: str | None = None,
     ) -> PipelineOutcome:
         log = TaskEventLog(user_id=user_id, session=self._session, metrics=self._metrics)
         self._bind_sink(log)
@@ -93,6 +94,7 @@ class CampaignPipeline:
                 festival=festival,
                 festival_campaign_id=festival_campaign_id,
                 festival_sequence=festival_sequence,
+                user_prompt=user_prompt,
             )
         finally:
             self._bind_sink(None)
@@ -107,6 +109,7 @@ class CampaignPipeline:
         strategy = ContentStrategyRequest(
             user_id=user_id,
             mode=mode,
+            user_prompt=kwargs.get("user_prompt"),
             business_profile=profile,
             festival=festival,
             automation=automation if _is_automation_snapshot(automation) else _automation_payload(automation),

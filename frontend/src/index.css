@@ -728,4 +728,112 @@ th {
   .topbar {
     padding: 0 16px;
   }
+  .trends-page[data-layout="stack"] .trend-grid,
+  .trends-page[data-layout="stack"] .trend-filters,
+  .trends-page[data-layout="stack"] .trends-subnav {
+    grid-template-columns: 1fr;
+  }
+}
+
+.trends-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.trends-subnav a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.trends-subnav a.active {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.trend-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: var(--space-4);
+}
+
+.trend-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.trend-facts dt {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.trend-facts dd {
+  margin: 0;
+}
+
+.kind-badge {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 8px;
+  margin-bottom: var(--space-2);
+}
+
+.kind-observed {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.kind-discovered {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.kind-inferred {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.kind-recommended {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.disclaimer {
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.trend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.trend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-4);
 }

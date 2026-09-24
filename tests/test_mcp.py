@@ -172,7 +172,7 @@ def test_tool_discovery(mcp_world) -> None:
     names = {item["name"] for item in discovered}
     servers = {item["server"] for item in discovered}
     assert names == set(MCP_TOOL_ALLOWLIST)
-    assert servers == {"business", "brand", "product", "asset", "festival", "content"}
+    assert servers == {"business", "brand", "product", "asset", "festival", "content", "account", "trend"}
     assert "publish_instagram_media" not in names
     assert "create_instagram_media" not in names
     assert "verify_publication" not in names
@@ -225,6 +225,9 @@ async def test_tool_invocation(mcp_world) -> None:
     assert [item["id"] for item in offers.data["offers"]] == [world.offer_id]
 
     festivals = await client.invoke("get_upcoming_festivals", {}, tenant_a)
+    as_of = festivals.data["as_of"]
+    assert all(item["date"] >= as_of for item in festivals.data["festivals"])
+    assert not any(item["festival_name"] == "Holi" for item in festivals.data["festivals"])
     diwali = next(item for item in festivals.data["festivals"] if item["festival_name"] == "Diwali")
     assert diwali["date"] == "2026-11-08"
     assert diwali["campaign"]["id"] == world.campaign_a

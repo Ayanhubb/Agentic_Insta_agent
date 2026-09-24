@@ -21,6 +21,8 @@ from api.auth_routes import admin_router, router as auth_router
 from db.repositories import SessionRepository, UserRepository
 from api.middleware import RequestContextMiddleware
 from api.platform_routes import router as platform_router
+from api.intelligence_routes import router as intelligence_router
+from api.trend_routes import router as trend_router
 from api.routes import create_router
 from api.task_store import TaskStore
 from auth.bootstrap import bootstrap_admin
@@ -135,6 +137,8 @@ def create_app(
     app.include_router(platform_router, prefix="/api/v1")
     app.include_router(asset_router, prefix="/api/v1")
     app.include_router(canva_router, prefix="/api/v1")
+    app.include_router(trend_router, prefix="/api/v1")
+    app.include_router(intelligence_router, prefix="/api/v1")
     app.include_router(create_router(settings, store, agent_factory, media_service=media_service), prefix="/api/v1")
 
     static_dir = settings.static_dir
@@ -212,6 +216,7 @@ def create_app(
     app.state.canva = canva
     app.state.canva_client = canva_client
     app.state.instagram_client = client
+    app.state.intelligence_reader = None
     app.state.engine = engine
     app.state.session_factory = factory
     app.state.clock = clock

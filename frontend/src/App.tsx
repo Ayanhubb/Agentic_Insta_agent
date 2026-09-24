@@ -19,6 +19,14 @@ import { PostsPage } from "./pages/PostsPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import {
+  AccountTrendsPage,
+  OpportunitiesPage,
+  ReportsPage,
+  ResearchPage,
+  TrendsLayout,
+  TrendsOverviewPage,
+} from "./pages/trends";
 
 export default function App() {
   return (
@@ -126,6 +134,20 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/trends"
+        element={
+          <ProtectedRoute>
+            <TrendsLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TrendsOverviewPage />} />
+        <Route path="account" element={<AccountTrendsPage />} />
+        <Route path="research" element={<ResearchPage />} />
+        <Route path="opportunities" element={<OpportunitiesPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+      </Route>
       <Route
         path="/campaigns"
         element={

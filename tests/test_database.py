@@ -88,6 +88,14 @@ def test_database_creation_creates_required_tables(engine) -> None:
         "brand_guidelines",
         "products",
         "product_assets",
+        "trend_sources",
+        "trend_observations",
+        "trend_evidence",
+        "account_snapshots",
+        "media_snapshots",
+        "insight_snapshots",
+        "trend_reports",
+        "content_opportunities",
     }
     assert expected.issubset(names)
 

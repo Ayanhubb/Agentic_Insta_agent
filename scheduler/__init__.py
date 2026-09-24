@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["AutomationRunner", "DailyScheduler", "FestivalScheduler"]
+__all__ = ["AutomationRunner", "DailyScheduler", "FestivalScheduler", "TrendIntelligenceScheduler"]
 
 
 def __getattr__(name: str) -> Any:
@@ -24,4 +24,8 @@ def __getattr__(name: str) -> Any:
         from scheduler.scheduler import AutomationRunner
 
         return AutomationRunner
+    if name == "TrendIntelligenceScheduler":
+        from scheduler.trend_scheduler import TrendIntelligenceScheduler
+
+        return TrendIntelligenceScheduler
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

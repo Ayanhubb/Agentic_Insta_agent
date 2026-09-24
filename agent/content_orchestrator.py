@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from agent.creative_validation import reject_untrusted_plan, validate_creative_plan
 from ai.schemas import ContentSource as ImageSource
 from ai.schemas import ImageGenerationRequest, ImageReference
-from backend.ai.image.base import CONTENT_AGENT_CALLER, ImageInput, ImageRequest
+from backend.ai.image.base import ImageInput, ImageRequest
 from backend.mcp.client import MCPClient
 from backend.mcp.errors import MCPError
 from backend.mcp.servers import build_registry
@@ -53,6 +53,13 @@ from models.creative import (
     SourcedProduct,
 )
 from models.errors import AppError, ErrorCode
+from services.image_reference import (
+    accepts_content_agent_caller,
+    asset_ids_from_mcp,
+    bound_reference_images,
+    load_reference_image,
+    submit_creative_image,
+)
 from services.logging import log_step
 
 logger = logging.getLogger(__name__)
@@ -277,6 +284,7 @@ class ContentOrchestrator:
             raise AppError(ErrorCode.INVALID_REQUEST, "The product was not found.")
         names = [item.name for item in catalog] or profile_names
         confirmed: list[str] = []
+        image_ids_by_name: dict[str, list[str]] = {}
         for name in names[:8]:
             payload = await self._tool(tenant, "get_product", {"name": name})
             product = payload.get("product") if payload.get("found") else None
@@ -284,15 +292,34 @@ class ContentOrchestrator:
                 confirmed.append(str(product["name"]))
             elif catalog:
                 confirmed.append(name)
+            image_payload = await self._tool(tenant, "get_product_image", {"product": name})
+            image_ids = asset_ids_from_mcp(image_payload)
+            if image_ids:
+                image_ids_by_name[name.casefold()] = image_ids
         if catalog:
             by_name = {item.name.casefold(): item for item in catalog}
             selected = []
             for name in confirmed:
                 row = by_name.get(name.casefold())
-                if row is not None:
-                    selected.append(row)
+                if row is None:
+                    continue
+                ids = image_ids_by_name.get(name.casefold()) or ([row.asset_id] if row.asset_id else [])
+                if ids:
+                    row = row.model_copy(update={"asset_id": ids[0], "asset_ids": ids})
+                selected.append(row)
             return selected or catalog
-        return [SourcedProduct(id=_product_id(name), name=name) for name in confirmed]
+        products = []
+        for name in confirmed:
+            ids = image_ids_by_name.get(name.casefold(), [])
+            products.append(
+                SourcedProduct(
+                    id=_product_id(name),
+                    name=name,
+                    asset_id=ids[0] if ids else None,
+                    asset_ids=ids,
+                )
+            )
+        return products
 
     def _catalog_products(self, user_id: str, product_id: str | None) -> list[SourcedProduct]:
         if self._session is None:
@@ -486,17 +513,26 @@ class ContentOrchestrator:
             source=_image_source(mode),
             references=references,
         )
+        product_ids = [ref.asset_id for ref in references if ref.kind == "product"]
+        product_inputs = _inputs(self, request.user_id, product_ids)
+        logo_ids = list(context.brand.asset_ids)
+        company_logo = _first_input(self, request.user_id, logo_ids)
+        extra_ids = [asset_id for asset_id in plan.asset_ids if asset_id not in set(logo_ids)]
         rich = ImageRequest(
             prompt=prompt,
             user_id=request.user_id,
-            product_image=_first_input(self, request.user_id, [ref.asset_id for ref in references if ref.kind == "product"]),
-            company_logo=_first_input(self, request.user_id, context.brand.asset_ids),
-            reference_images=_inputs(self, request.user_id, plan.asset_ids),
+            product_image=product_inputs[0] if product_inputs else None,
+            company_logo=company_logo,
+            reference_images=bound_reference_images(
+                company_logo=company_logo,
+                product_image=product_inputs[0] if product_inputs else None,
+                extras=product_inputs[1:] + _inputs(self, request.user_id, extra_ids),
+            ),
         )
         generate = self._images.generate
         try:
-            if "caller" in inspect.signature(generate).parameters:
-                return await generate(rich, caller=CONTENT_AGENT_CALLER)
+            if rich.has_input_images or accepts_content_agent_caller(generate):
+                return await submit_creative_image(self._images, rich, settings=self._settings)
             return await generate(legacy)
         except AppError as exc:
             if exc.code == ErrorCode.CONTENT_IMAGE_FAILED:
@@ -531,7 +567,14 @@ def _image_references(plan: CreativePlan, context: CreativeContext) -> list[Imag
         product = by_id.get(product_id)
         if product is None:
             continue
-        refs.append(ImageReference(asset_id=product.asset_id or product.id, kind="product", label=product.name))
+        asset_ids = list(product.asset_ids)
+        if product.asset_id and product.asset_id not in asset_ids:
+            asset_ids.insert(0, product.asset_id)
+        if not asset_ids:
+            refs.append(ImageReference(asset_id=product.id, kind="product", label=product.name))
+            continue
+        for asset_id in asset_ids:
+            refs.append(ImageReference(asset_id=asset_id, kind="product", label=product.name))
     for asset_id in plan.asset_ids:
         refs.append(ImageReference(asset_id=asset_id, kind="asset", label="sourced asset"))
     return refs
@@ -630,19 +673,7 @@ def _snapshot(result: Any, request: ContentOrchestrationRequest, plan: CreativeP
 
 # Attached after the class so asset loading stays next to the image request builder.
 def _load_asset(self: ContentOrchestrator, user_id: str, asset_id: str) -> ImageInput | None:
-    if self._session is None or self._settings is None or not asset_id:
-        return None
-    from models.errors import AppError as AssetError
-    from services.asset_catalog import AssetCatalog
-
-    try:
-        path, mime, filename = AssetCatalog(self._session, self._settings).open_media(user_id, asset_id)
-        data = path.read_bytes()
-    except (AssetError, OSError):
-        return None
-    if not data or mime.lower() not in {"image/png", "image/jpeg", "image/jpg", "image/webp"}:
-        return None
-    return ImageInput(data=data, mime_type=mime, filename=filename)
+    return load_reference_image(self._session, self._settings, user_id, asset_id)
 
 
 ContentOrchestrator._load_asset = _load_asset  # type: ignore[method-assign]

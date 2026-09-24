@@ -102,6 +102,13 @@ def test_pipeline_events_do_not_keep_secrets() -> None:
     assert detail["deepseek_api_key"] == "[REDACTED]"
     assert detail["canva_token"] == "[REDACTED]"
     assert redact_text(f"CANVA_API_KEY={secret}") == "CANVA_API_KEY=[REDACTED]"
-    assert redact_value({"api_key": secret})["api_key"] == "[REDACTED]"
+    assert redact_text(f"CANVA_TOKEN={secret}") == "CANVA_TOKEN=[REDACTED]"
+    assert redact_text(f"JWT_SECRET={secret}") == "JWT_SECRET=[REDACTED]"
+    assert redact_text(f"TOKEN_ENCRYPTION_KEY={secret}") == "TOKEN_ENCRYPTION_KEY=[REDACTED]"
+    assert redact_value({"api_key": secret, "jwt_secret": secret, "token_encryption_key": secret}) == {
+        "api_key": "[REDACTED]",
+        "jwt_secret": "[REDACTED]",
+        "token_encryption_key": "[REDACTED]",
+    }
     assert log.events[0].correlation_id == "corr-1"
     assert log.events[0].request_id == "req-1"

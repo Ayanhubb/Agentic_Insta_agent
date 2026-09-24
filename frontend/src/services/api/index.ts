@@ -10,6 +10,7 @@ export { postsApi } from "./posts";
 export { automationApi } from "./automation";
 export { festivalsApi } from "./festivals";
 export { dashboardApi } from "./dashboard";
+export { trendsApi } from "./trends";
 export type { DashboardData, DashboardPayload } from "./dashboard";
 export { businessApi } from "./business";
 export { adminApi } from "./admin";

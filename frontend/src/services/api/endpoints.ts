@@ -63,4 +63,14 @@ export const API = {
   },
   aiStatus: "/api/v1/ai/status",
   mcpStatus: "/api/v1/mcp/status",
+  trends: {
+    account: "/api/v1/trends/account",
+    research: "/api/v1/trends/research",
+    opportunities: "/api/v1/trends/opportunities",
+    reports: "/api/v1/trends/reports",
+    dismiss: (id: string) => `/api/v1/trends/opportunities/${encodeURIComponent(id)}/dismiss`,
+    save: (id: string) => `/api/v1/trends/opportunities/${encodeURIComponent(id)}/save`,
+    evidence: (id: string) => `/api/v1/trends/opportunities/${encodeURIComponent(id)}/evidence`,
+    createContent: (id: string) => `/api/v1/trends/opportunities/${encodeURIComponent(id)}/create-content`,
+  },
 } as const;

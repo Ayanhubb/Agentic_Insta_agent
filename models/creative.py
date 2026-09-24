@@ -46,11 +46,17 @@ class SourcedProduct(BaseModel):
     price: str | None = None
     offer: str | None = None
     asset_id: str | None = None
+    asset_ids: list[str] = Field(default_factory=list)
 
     @field_validator("price", "offer", "description", "asset_id", mode="before")
     @classmethod
     def _empty(cls, value: Any) -> str | None:
         return _blank_to_none(value)
+
+    @field_validator("asset_ids")
+    @classmethod
+    def _asset_ids(cls, value: list[str]) -> list[str]:
+        return [str(item).strip() for item in value if str(item).strip()]
 
 
 class SourcedOffer(BaseModel):

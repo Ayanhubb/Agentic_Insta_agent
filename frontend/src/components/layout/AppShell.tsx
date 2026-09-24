@@ -10,6 +10,7 @@ const NAV = [
     { to: "/images", label: "Images" },
     { to: "/posts", label: "Posts" },
     { to: "/campaigns", label: "Campaigns" },
+    { to: "/trends", label: "Trends" },
   ]},
   { section: "Catalog", items: [
     { to: "/brand", label: "Brand" },

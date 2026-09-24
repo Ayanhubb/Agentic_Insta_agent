@@ -17,6 +17,19 @@ MCP_TOOL_ALLOWLIST = frozenset(
         "get_upcoming_festivals",
         "get_festival_details",
         "get_content_rules",
+        "get_account_summary",
+        "get_recent_media",
+        "get_account_insights",
+        "get_top_content",
+        "get_content_performance",
+        "get_publishing_history",
+        "get_current_trends",
+        "get_trend_evidence",
+        "get_regional_trends",
+        "get_festival_opportunities",
+        "get_business_opportunities",
+        "get_content_opportunities",
+        "get_latest_trend_report",
     }
 )
 

@@ -11,6 +11,9 @@ from typing import Any
 from uuid import uuid4
 
 from agent.planner import ALLOWED_TOOL_SET
+from backend.ai.image.base import ImageRequest
+from backend.mcp.errors import MCPError
+from backend.mcp.tenant_isolation import trusted_tenant
 from models.content import (
     ApprovalStatus,
     AutomationSettingsSnapshot,
@@ -30,6 +33,13 @@ from models.content import (
     RecentContent,
 )
 from models.errors import AppError, ErrorCode
+from services.image_reference import (
+    accepts_content_agent_caller,
+    asset_ids_from_mcp,
+    bound_reference_images,
+    load_reference_image,
+    submit_creative_image,
+)
 from services.logging import log_step
 
 logger = logging.getLogger(__name__)
@@ -252,9 +262,14 @@ class ContentAgent:
         max_plan_attempts: int = 3,
         images: Any | None = None,
         event_sink: Any | None = None,
+        settings: Any | None = None,
+        mcp: Any | None = None,
     ) -> None:
         self._llm = llm
         self._images = image_generator if image_generator is not None else images
+        self._session = session
+        self._settings = settings
+        self._mcp = mcp
         if context_store is not None:
             self._store = context_store
         elif session is not None:
@@ -657,23 +672,38 @@ class ContentAgent:
         try:
             if hasattr(self._images, "generate"):
                 generated = self._images.generate
-                try:
-                    result = await generated(
-                        prompt=plan.image_prompt,
-                        user_id=request.user_id,
-                        source=source.value,
-                    )
-                except TypeError:
-                    from ai.schemas import ImageGenerationRequest
-
-                    result = await generated(
-                        ImageGenerationRequest(
+                logo, product_image, extras = await self._reference_inputs(request, plan)
+                rich = ImageRequest(
+                    prompt=plan.image_prompt[:4000],
+                    user_id=request.user_id,
+                    company_logo=logo,
+                    product_image=product_image,
+                    reference_images=bound_reference_images(
+                        company_logo=logo,
+                        product_image=product_image,
+                        extras=extras,
+                    ),
+                )
+                if rich.has_input_images or accepts_content_agent_caller(generated):
+                    result = await submit_creative_image(self._images, rich, settings=self._settings)
+                else:
+                    try:
+                        result = await generated(
                             prompt=plan.image_prompt,
                             user_id=request.user_id,
-                            original_prompt=request.user_prompt or plan.theme,
-                            source=source.value,  # type: ignore[arg-type]
+                            source=source.value,
                         )
-                    )
+                    except TypeError:
+                        from ai.schemas import ImageGenerationRequest
+
+                        result = await generated(
+                            ImageGenerationRequest(
+                                prompt=plan.image_prompt,
+                                user_id=request.user_id,
+                                original_prompt=request.user_prompt or plan.theme,
+                                source=source.value,  # type: ignore[arg-type]
+                            )
+                        )
             else:
                 raise AppError(ErrorCode.CONTENT_IMAGE_FAILED, "Image generation is not configured.")
         except AppError as exc:
@@ -698,6 +728,103 @@ class ContentAgent:
             content_type=plan.content_type.value,
             theme=plan.theme,
         )
+
+    async def _reference_inputs(self, request: ContentStrategyRequest, plan: ContentPlan):
+        """Load logo and product files the creative actually asked for.
+
+        A missing or unreadable file stays out of the request. The prompt is not
+        rewritten into a stand-in such as "Use the company logo".
+        """
+        if self._mcp is None or self._session is None or self._settings is None:
+            return None, None, []
+        try:
+            source = "scheduler" if request.mode in {ContentMode.DAILY, ContentMode.FESTIVAL} else "authenticated"
+            tenant = trusted_tenant(request.user_id, source=source)
+        except MCPError:
+            return None, None, []
+        logo = await self._owned_logo(tenant, request.user_id, plan)
+        product_image = None
+        extras: list[Any] = []
+        seen: set[str] = set()
+        if plan.logo_asset_id:
+            seen.add(plan.logo_asset_id)
+        for token in _featured_tokens(plan):
+            payload = await self._product_image_payload(tenant, token)
+            for asset_id in asset_ids_from_mcp(payload):
+                if asset_id in seen:
+                    continue
+                loaded = load_reference_image(self._session, self._settings, request.user_id, asset_id)
+                if loaded is None:
+                    continue
+                seen.add(asset_id)
+                if product_image is None:
+                    product_image = loaded
+                else:
+                    extras.append(loaded)
+        for asset_id in plan.asset_ids:
+            if asset_id in seen:
+                continue
+            loaded = load_reference_image(self._session, self._settings, request.user_id, asset_id)
+            if loaded is None:
+                continue
+            seen.add(asset_id)
+            extras.append(loaded)
+        return logo, product_image, extras
+
+    async def _owned_logo(self, tenant: Any, user_id: str, plan: ContentPlan):
+        requested = (plan.logo_asset_id or "").strip()
+        if not plan.logo_required and not requested:
+            return None
+        if requested:
+            payload = await self._mcp_data(tenant, "get_company_logo", {"asset_id": requested})
+            ids = asset_ids_from_mcp(payload)
+            loaded = _first_loaded(self, user_id, ids)
+            if loaded is not None:
+                plan.logo_asset_id = ids[0]
+                return loaded
+        payload = await self._mcp_data(tenant, "get_company_logo", {})
+        ids = asset_ids_from_mcp(payload)
+        loaded = _first_loaded(self, user_id, ids)
+        plan.logo_asset_id = ids[0] if loaded is not None and ids else None
+        return loaded
+
+    async def _product_image_payload(self, tenant: Any, token: str) -> dict[str, Any]:
+        if " " not in token and len(token) <= 64:
+            by_id = await self._mcp_data(tenant, "get_product_image", {"product_id": token})
+            if by_id.get("found"):
+                return by_id
+        product = await self._mcp_data(tenant, "get_product", {"name": token})
+        if not product.get("found"):
+            return {"found": False}
+        return await self._mcp_data(tenant, "get_product_image", {"product": token})
+
+    async def _mcp_data(self, tenant: Any, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            result = await self._mcp.invoke(name, arguments, tenant)
+        except MCPError:
+            return {"found": False}
+        data = getattr(result, "data", None)
+        return data if isinstance(data, dict) else {"found": False}
+
+
+def _featured_tokens(plan: ContentPlan) -> list[str]:
+    tokens: list[str] = []
+    featured = str(plan.featured_product_or_service or "").strip()
+    if featured:
+        tokens.append(featured)
+    for item in plan.product_ids:
+        text = str(item).strip()
+        if text and text not in tokens:
+            tokens.append(text)
+    return tokens[:8]
+
+
+def _first_loaded(agent: ContentAgent, user_id: str, asset_ids: list[str]):
+    for asset_id in asset_ids:
+        loaded = load_reference_image(agent._session, agent._settings, user_id, asset_id)
+        if loaded is not None:
+            return loaded
+    return None
 
 
 def build_content_agent(llm: Any, image_generator: Any, **kwargs: Any) -> ContentAgent:

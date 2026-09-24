@@ -109,6 +109,10 @@ class Settings(BaseModel):
     llm_temperature: float = 0.4
     image_size: str = "1024x1024"
     openai_retry_delay_seconds: float = 0.4
+    trend_fast_hours: int = 6
+    trend_current_days: int = 7
+    trend_seasonal_days: int = 60
+    trend_evergreen_days: int = 180
 
     database_url: str = ""
     token_encryption_key: str = ""
@@ -312,6 +316,10 @@ class Settings(BaseModel):
             llm_temperature=_float_env("LLM_TEMPERATURE", 0.4),
             image_size=_optional_env("IMAGE_SIZE") or "1024x1024",
             openai_retry_delay_seconds=_float_env("OPENAI_RETRY_DELAY_SECONDS", 0.4),
+            trend_fast_hours=_int_env("TREND_FAST_HOURS", 6),
+            trend_current_days=_int_env("TREND_CURRENT_DAYS", 7),
+            trend_seasonal_days=_int_env("TREND_SEASONAL_DAYS", 60),
+            trend_evergreen_days=_int_env("TREND_EVERGREEN_DAYS", 180),
             database_url=_optional_env("DATABASE_URL"),
             token_encryption_key=_optional_env("TOKEN_ENCRYPTION_KEY")
             or _optional_env("ACCOUNT_TOKEN_FERNET_KEY"),

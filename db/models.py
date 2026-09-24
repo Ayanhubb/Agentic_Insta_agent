@@ -37,6 +37,7 @@ from db.enums import (
     DEFAULT_TIMEZONE,
     AccountStatus,
     ApprovalStatus,
+    ContentOpportunityStatus,
     FestivalPostStatus,
     GenerationStatus,
     ImageSource,
@@ -46,6 +47,7 @@ from db.enums import (
     PostType,
     TaskTrigger,
     TaskType,
+    TrendObservationStatus,
 )
 
 
@@ -254,6 +256,273 @@ class ProductAsset(Base):
 
     product: Mapped[Product] = relationship(back_populates="asset_links")
     asset: Mapped[BusinessAsset] = relationship(back_populates="product_links")
+
+
+class TrendSource(Base):
+    """Allowlisted research source for one tenant. Shared feeds are copied per business."""
+
+    __tablename__ = "trend_sources"
+    __table_args__ = (
+        Index("ix_trend_sources_industry", "industry"),
+        Index("ix_trend_sources_region", "region"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+
+class TrendObservation(Base):
+    """Tenant-scoped trend fact. New rows are inserted; expiry does not delete history."""
+
+    __tablename__ = "trend_observations"
+    __table_args__ = (
+        CheckConstraint(
+            "source IN ('research', 'meta', 'festival', 'business', 'product', 'brand')",
+            name="ck_trend_observations_source",
+        ),
+        CheckConstraint(
+            "status IN ('ACTIVE', 'EXPIRED', 'ARCHIVED')",
+            name="ck_trend_observations_status",
+        ),
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
+            name="ck_trend_observations_confidence",
+        ),
+        Index(
+            "uq_trend_observations_source_external",
+            "user_id",
+            "source_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL AND source_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL AND source_id IS NOT NULL"),
+        ),
+        Index("ix_trend_observations_user_observed", "user_id", "observed_at"),
+        Index("ix_trend_observations_observed_at", "observed_at"),
+        Index("ix_trend_observations_valid_until", "valid_until"),
+        Index("ix_trend_observations_industry", "industry"),
+        Index("ix_trend_observations_region", "region"),
+        Index("ix_trend_observations_trend_type", "trend_type"),
+        Index("ix_trend_observations_status", "status"),
+        Index(
+            "ix_trend_observations_lookup",
+            "industry",
+            "region",
+            "trend_type",
+            "status",
+            "observed_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id: Mapped[str | None] = mapped_column(
+        ForeignKey("trend_sources.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    industry: Mapped[str] = mapped_column(String(64), nullable=False)
+    region: Mapped[str] = mapped_column(String(64), nullable=False)
+    festival: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    trend_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    evidence: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="research")
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=TrendObservationStatus.ACTIVE.value, server_default="ACTIVE"
+    )
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+
+class TrendEvidence(Base):
+    """Evidence captured for an observation. Deleted only when that observation is purged."""
+
+    __tablename__ = "trend_evidence"
+    __table_args__ = (
+        Index("ix_trend_evidence_observed_at", "observed_at"),
+        Index("ix_trend_evidence_valid_until", "valid_until"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    observation_id: Mapped[str] = mapped_column(
+        ForeignKey("trend_observations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="research")
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class AccountSnapshot(Base):
+    """Append-only account metrics. A later refresh inserts a new row."""
+
+    __tablename__ = "account_snapshots"
+    __table_args__ = (
+        Index("ix_account_snapshots_business_id", "business_id"),
+        Index("ix_account_snapshots_observed_at", "observed_at"),
+        Index("ix_account_snapshots_user_observed", "user_id", "observed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    instagram_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("instagram_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    media_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metrics: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class MediaSnapshot(Base):
+    """Append-only media performance. Earlier captures stay for comparison."""
+
+    __tablename__ = "media_snapshots"
+    __table_args__ = (
+        Index("ix_media_snapshots_business_id", "business_id"),
+        Index("ix_media_snapshots_observed_at", "observed_at"),
+        Index("ix_media_snapshots_user_media_observed", "user_id", "instagram_media_id", "observed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    instagram_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("instagram_accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    instagram_post_id: Mapped[str | None] = mapped_column(
+        ForeignKey("instagram_posts.id", ondelete="SET NULL"), nullable=True
+    )
+    instagram_media_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    like_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    comments_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reach: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    saved: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shares: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metrics: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class InsightSnapshot(Base):
+    """Stored comparison or evolution result. Never updated in place."""
+
+    __tablename__ = "insight_snapshots"
+    __table_args__ = (
+        Index("ix_insight_snapshots_business_id", "business_id"),
+        Index("ix_insight_snapshots_observed_at", "observed_at"),
+        Index("ix_insight_snapshots_user_observed", "user_id", "observed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    insight_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class TrendReport(Base):
+    """One report per refresh. Readers pick the newest; older reports stay stored."""
+
+    __tablename__ = "trend_reports"
+    __table_args__ = (
+        Index("ix_trend_reports_user_observed", "user_id", "observed_at"),
+        Index("ix_trend_reports_business_id", "business_id"),
+        Index("ix_trend_reports_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    industry: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    observation_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="READY", server_default="READY")
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class ContentOpportunity(Base):
+    """A content action tied to a stored trend. Status changes do not remove the row."""
+
+    __tablename__ = "content_opportunities"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('NEW', 'REVIEWED', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'USED')",
+            name="ck_content_opportunities_status",
+        ),
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
+            name="ck_content_opportunities_confidence",
+        ),
+        Index("ix_content_opportunities_business_id", "business_id"),
+        Index("ix_content_opportunities_status", "status"),
+        Index("ix_content_opportunities_expires_at", "expires_at"),
+        Index("ix_content_opportunities_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id: Mapped[str] = mapped_column(
+        ForeignKey("business_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    trend_id: Mapped[str] = mapped_column(
+        ForeignKey("trend_observations.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    why_now: Mapped[str] = mapped_column(Text, nullable=False)
+    creative_direction: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    recommended_format: Mapped[str] = mapped_column(String(32), nullable=False, default="IMAGE")
+    product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    festival_id: Mapped[str | None] = mapped_column(
+        ForeignKey("festival_campaigns.id", ondelete="SET NULL"), nullable=True
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=ContentOpportunityStatus.NEW.value, server_default="NEW"
+    )
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
 
 
 class GeneratedImage(Base):
@@ -511,3 +780,17 @@ class CanvaOAuthState(Base):
     code_verifier_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = timestamp_column()
+
+
+class InstagramIntelligenceRecord(Base):
+    """Normalized account-intelligence snapshot. Tokens and raw Graph payloads are not stored."""
+
+    __tablename__ = "instagram_intelligence_records"
+    __table_args__ = (Index("ix_ig_intelligence_user_kind_captured", "user_id", "kind", "captured_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

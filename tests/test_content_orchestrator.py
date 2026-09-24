@@ -165,6 +165,7 @@ def _mcp() -> FakeMCP:
                 },
             },
             "get_product": {"found": True, "product": {"name": "kundan necklace"}},
+            "get_product_image": {"found": False, "asset": None, "assets": []},
             "get_active_offers": {"offers": []},
             "get_brand_guidelines": {
                 "found": True,
@@ -210,9 +211,10 @@ async def _run(tmp_path: Path, **kwargs):
 async def test_workflow_queries_mcp_and_returns_pending_asset(tmp_path: Path) -> None:
     result, creative, images, mcp, store, canva = await _run(tmp_path)
 
-    assert mcp.calls[:6] == [
+    assert mcp.calls[:7] == [
         "get_business_profile",
         "get_product",
+        "get_product_image",
         "get_active_offers",
         "get_brand_guidelines",
         "get_company_logo",

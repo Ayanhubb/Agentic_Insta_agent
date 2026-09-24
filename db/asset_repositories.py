@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.orm import Session
 
 from db.base import utcnow
@@ -164,6 +164,22 @@ class ProductRepository:
 class ProductAssetRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def list_for_product(self, user_id: str, product_id: str) -> list[ProductAsset]:
+        primary_first = case((ProductAsset.role == "primary", 0), else_=1)
+        stmt = (
+            select(ProductAsset)
+            .where(ProductAsset.user_id == user_id, ProductAsset.product_id == product_id)
+            .order_by(primary_first, ProductAsset.created_at.asc())
+        )
+        return list(self.session.scalars(stmt))
+
+    def list_for_asset(self, user_id: str, asset_id: str) -> list[ProductAsset]:
+        stmt = select(ProductAsset).where(
+            ProductAsset.user_id == user_id,
+            ProductAsset.asset_id == asset_id,
+        )
+        return list(self.session.scalars(stmt))
 
     def primary_for_product(self, user_id: str, product_id: str) -> ProductAsset | None:
         return self.session.scalar(

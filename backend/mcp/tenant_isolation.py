@@ -25,6 +25,10 @@ UNTRUSTED_TENANT_KEYS = frozenset(
         "user",
         "account_id",
         "accountId",
+        "instagram_account_id",
+        "instagramAccountId",
+        "business_id",
+        "businessId",
         "owner_id",
         "ownerId",
     }
