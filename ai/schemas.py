@@ -173,6 +173,16 @@ class ContentPlan(BaseModel):
         return normalized
 
 
+class ImageReference(BaseModel):
+    """A sourced subject sent to the image provider. No secrets and no filesystem paths."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    asset_id: str
+    kind: str
+    label: str
+
+
 class ImageGenerationRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -181,6 +191,7 @@ class ImageGenerationRequest(BaseModel):
     original_prompt: str | None = None
     source: ContentSource = ContentSource.USER_PROMPT
     mime_type: str = "image/png"
+    references: list[ImageReference] = Field(default_factory=list)
 
     @field_validator("prompt")
     @classmethod
@@ -236,6 +247,7 @@ class GeneratedImage(BaseModel):
     def public_dict(self) -> dict[str, Any]:
         payload = self.model_dump(mode="json")
         payload.pop("openai_api_key", None)
+        payload.pop("deepseek_api_key", None)
         payload.pop("api_key", None)
         return payload
 

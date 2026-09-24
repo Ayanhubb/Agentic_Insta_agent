@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from agent.content_agent import ContentAgent
@@ -15,12 +17,14 @@ from db.repositories import (
     PostRepository,
     UserRepository,
 )
-from models.content import ContentMode, ContentStrategyRequest
+from models.content import ContentMode
 from models.errors import AppError
 from services.clock import Clock
+from services.metrics import PipelineMetrics
 from services.publication import PublicationService
 from scheduler.job_manager import JobManager
-from scheduler.policies import attach_publication, automation_context, is_at_or_after_local_time
+from scheduler.pipeline import CampaignPipeline
+from scheduler.policies import attach_publication, is_at_or_after_local_time
 
 
 class DailyScheduler:
@@ -31,6 +35,11 @@ class DailyScheduler:
         content_agent: ContentAgent,
         publisher: PublicationService,
         clock: Clock,
+        *,
+        vision: Any | None = None,
+        festival_mcp: Any | None = None,
+        canva: Any | None = None,
+        metrics: PipelineMetrics | None = None,
     ) -> None:
         self._settings = settings
         self._session = session
@@ -44,6 +53,16 @@ class DailyScheduler:
         self._slots = DailySlotRepository(session)
         self._posts = PostRepository(session)
         self._jobs = JobManager(session)
+        self._pipeline = CampaignPipeline(
+            content_agent,
+            publisher,
+            session,
+            vision=vision,
+            festival_mcp=festival_mcp,
+            canva=canva,
+            metrics=metrics,
+        )
+        self.outcomes: list[Any] = []
 
     async def run_user(
         self,
@@ -63,6 +82,7 @@ class DailyScheduler:
         account = self._accounts.get_primary(user.id)
         account_pk = account.id if account else ""
         if self._posts.has_published_daily(user.id, account_pk or None, today):
+            self._pipeline._metrics.increment("duplicate_prevented")
             return {"status": "skipped", "reason": "already_published", "scheduled_date": today.isoformat()}
 
         existing = self._slots.get(user.id, account_pk, today)
@@ -78,36 +98,13 @@ class DailyScheduler:
             slot.status = "FAILED"
             return {"status": "failed", "reason": "missing_business_profile"}
         try:
-            result = await self._content.run(
-                ContentStrategyRequest(
-                    user_id=user.id,
-                    mode=ContentMode.DAILY,
-                    business_profile=profile,
-                    automation=automation_context(automation),
-                    instagram_account_id=account.id if account else None,
-                    now=now,
-                )
-            )
-        except AppError as exc:
-            slot.status = "FAILED"
-            return {"status": "failed", "reason": exc.code.value}
-
-        if not result.handoff.auto_approved or not result.generated_image or not result.generated_image.id:
-            slot.status = "FAILED" if not result.generated_image else "CLAIMED"
-            return {"status": "generated_pending_approval"}
-
-        from db.models import GeneratedImage
-
-        image = self._session.get(GeneratedImage, result.generated_image.id)
-        if image is None:
-            slot.status = "FAILED"
-            return {"status": "failed", "reason": "image_missing"}
-        self._session.commit()
-        try:
-            post = await self._publisher.publish_generated_image(
+            outcome = await self._pipeline.execute(
                 user_id=user.id,
-                image=image,
+                mode=ContentMode.DAILY,
+                profile=profile,
+                automation=automation,
                 account=account,
+                now=now,
                 post_type="DAILY_RETAIL_POST",
                 trigger="DAILY_AUTOMATION",
                 scheduled_date=today,
@@ -115,10 +112,21 @@ class DailyScheduler:
         except AppError as exc:
             slot.status = "FAILED"
             return {"status": "failed", "reason": exc.code.value}
+        self.outcomes.append(outcome)
+        identity = {
+            "correlation_id": outcome.correlation_id,
+            "request_id": outcome.request_id,
+            "task_id": outcome.task_id,
+        }
+        if outcome.post is None:
+            slot.status = "FAILED" if outcome.retryable or not outcome.image_id else "CLAIMED"
+            if outcome.retryable:
+                return {"status": "failed", "reason": outcome.reason or "approval_blocked", "scheduled_date": today.isoformat(), **identity}
+            return {"status": "generated_pending_approval", "reason": outcome.reason, "scheduled_date": today.isoformat(), **identity}
 
         post = attach_publication(
             self._session,
-            post,
+            outcome.post,
             account=account,
             scheduled_date=today,
             post_type="DAILY_RETAIL_POST",
@@ -138,6 +146,9 @@ class DailyScheduler:
             "post_id": post.id,
             "scheduled_date": today.isoformat(),
             "verified": str(post.status == "PUBLISHED"),
+            "correlation_id": outcome.correlation_id,
+            "request_id": outcome.request_id,
+            "task_id": outcome.task_id,
         }
 
     async def run_all(self, *, force: bool = False) -> list[dict[str, str]]:

@@ -12,7 +12,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from agent.content_agent import ContentAgent
+from agent.content_agent import SessionContextStore
+from agent.content_orchestrator import ContentOrchestrator, build_content_mcp
 from auth.deps import get_db, require_admin, require_password_ok
 from festivals.festival_service import FestivalService
 from festivals.india_festivals import festivals_for_year
@@ -27,7 +28,7 @@ from db.repositories import (
     TaskRepository,
     UserRepository,
 )
-from models.content import ContentMode, ContentStrategyRequest
+from models.creative import ContentOrchestrationRequest
 from models.errors import AppError, ErrorCode
 from services.media_storage import MediaStorage
 from services.publication import InstagramConnectRequest, PublicationGateway, PublicationService, strip_secrets
@@ -40,8 +41,22 @@ def _settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
-def _content_agent(request: Request, db: Session) -> ContentAgent:
-    return ContentAgent(request.app.state.llm, request.app.state.images, session=db)
+def _content_orchestrator(request: Request, db: Session) -> ContentOrchestrator:
+    creative = getattr(request.app.state, "creative_model", None)
+    if creative is None:
+        from ai.creative_model import get_creative_model
+
+        creative = get_creative_model(request.app.state.settings)
+    return ContentOrchestrator(
+        creative,
+        request.app.state.images,
+        build_content_mcp(request.app.state.session_factory, request.app.state.clock),
+        store=SessionContextStore(db),
+        session=db,
+        settings=request.app.state.settings,
+        canva=getattr(request.app.state, "canva_client", None),
+        clock=lambda: request.app.state.clock.now(),
+    )
 
 
 def _publisher(request: Request, db: Session) -> PublicationService:
@@ -82,6 +97,24 @@ def _image_payload(image: GeneratedImage) -> dict[str, Any]:
     }
 
 
+def _stored_image(db: Session, result: Any) -> dict[str, Any] | None:
+    generated = result.strategy.generated_image
+    if generated is None or not generated.id:
+        return None
+    row = db.get(GeneratedImage, generated.id)
+    if row is None:
+        return None
+    payload = _image_payload(row)
+    plan = result.creative_plan
+    payload["caption"] = plan.caption
+    payload["creative_brief"] = plan.creative_direction
+    payload["festival"] = plan.festival
+    payload["qa_status"] = "passed" if result.qa.passed else "failed"
+    if plan.product_ids:
+        payload["product_id"] = plan.product_ids[0]
+    return payload
+
+
 class BusinessBody(BaseModel):
     business_name: str
     business_type: str | None = None
@@ -97,6 +130,10 @@ class BusinessBody(BaseModel):
 
 class GenerateBody(BaseModel):
     prompt: str = Field(min_length=3)
+    product_id: str | None = None
+    offer_id: str | None = None
+    festival: str | None = None
+    use_canva: bool | None = None
 
 
 class AutomationBody(BaseModel):
@@ -172,27 +209,26 @@ async def create_generation(
     user: User = Depends(require_password_ok),
     db: Session = Depends(get_db),
 ) -> dict:
-    profile = BusinessRepository(db).get_for_user(user.id)
-    agent = _content_agent(request, db)
-    result = await agent.run(
-        ContentStrategyRequest(
+    result = await _content_orchestrator(request, db).run(
+        ContentOrchestrationRequest(
             user_id=user.id,
-            mode=ContentMode.USER_PROMPT,
+            authenticated=True,
+            mode="USER_PROMPT",
             user_prompt=body.prompt,
-            business_profile=profile,
+            festival=body.festival,
+            product_id=body.product_id,
+            offer_id=body.offer_id,
+            use_canva=body.use_canva,
         )
     )
-    image = None
-    if result.generated_image and result.generated_image.id:
-        row = db.get(GeneratedImage, result.generated_image.id)
-        if row:
-            image = _image_payload(row)
+    image = _stored_image(db, result)
     return {
-        "task": result.task.model_dump(mode="json"),
-        "plan": result.plan.model_dump(mode="json"),
+        "task": result.strategy.task.model_dump(mode="json"),
+        "plan": result.strategy.plan.model_dump(mode="json"),
+        "creative_plan": result.creative_plan.model_dump(mode="json"),
         "image": image,
         "generated_image": image,
-        "approval_status": result.approval_status.value,
+        "approval_status": result.strategy.approval_status.value,
         "published": False,
     }
 
@@ -230,21 +266,16 @@ async def regenerate(
     image = GeneratedImageRepository(db).get_owned(user.id, image_id)
     if image is None:
         raise AppError(ErrorCode.NOT_FOUND, "Image was not found.")
-    profile = BusinessRepository(db).get_for_user(user.id)
-    result = await _content_agent(request, db).run(
-        ContentStrategyRequest(
+    result = await _content_orchestrator(request, db).run(
+        ContentOrchestrationRequest(
             user_id=user.id,
-            mode=ContentMode.USER_PROMPT,
+            authenticated=True,
+            mode="USER_PROMPT",
             user_prompt=image.original_prompt,
-            business_profile=profile,
         )
     )
-    payload = None
-    if result.generated_image and result.generated_image.id:
-        row = db.get(GeneratedImage, result.generated_image.id)
-        if row:
-            payload = _image_payload(row)
-    return {"image": payload, "generated_image": payload}
+    payload = _stored_image(db, result)
+    return {"image": payload, "generated_image": payload, "published": False}
 
 
 @router.post("/generation/{image_id}/approve")

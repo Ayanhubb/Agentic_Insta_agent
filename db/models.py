@@ -7,6 +7,7 @@ exist only where persistence or duplicate-protection requires them.
 from __future__ import annotations
 
 from datetime import date, datetime, time as dt_time
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -18,6 +19,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     TypeDecorator,
@@ -97,6 +99,10 @@ class User(Base):
     automation_settings: Mapped["AutomationSettings | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    business_assets: Mapped[list["BusinessAsset"]] = relationship(back_populates="user", passive_deletes=True)
+    brand_profile: Mapped["BrandProfile | None"] = relationship(back_populates="user", uselist=False, passive_deletes=True)
+    brand_guidelines: Mapped[list["BrandGuideline"]] = relationship(back_populates="user", passive_deletes=True)
+    products: Mapped[list["Product"]] = relationship(back_populates="user", passive_deletes=True)
 
 
 class InstagramAccount(Base):
@@ -137,6 +143,119 @@ class BusinessProfile(Base):
     user: Mapped[User] = relationship(back_populates="business_profile")
 
 
+class BusinessAsset(Base):
+    """Tenant-scoped brand, product, or campaign file.
+
+    ``storage_key`` is an internal relative key. API and tool payloads must not include it.
+    """
+
+    __tablename__ = "business_assets"
+    __table_args__ = (
+        CheckConstraint("scope IN ('brand', 'product', 'campaign')", name="ck_business_assets_scope"),
+        CheckConstraint(
+            "role IN ('logo_png', 'logo_svg', 'product_image', 'guideline', 'campaign', 'other')",
+            name="ck_business_assets_role",
+        ),
+        CheckConstraint("storage_key LIKE 'assets/%' AND storage_key NOT LIKE '%..%'", name="ck_business_assets_storage_key"),
+        Index("ix_business_assets_user_role", "user_id", "role"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope: Mapped[str] = mapped_column(String(32), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(180), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = timestamp_column()
+
+    user: Mapped[User] = relationship(back_populates="business_assets")
+    product_links: Mapped[list["ProductAsset"]] = relationship(back_populates="asset", passive_deletes=True)
+
+
+class BrandProfile(Base):
+    """One company brand record per user."""
+
+    __tablename__ = "brand_profiles"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_brand_profiles_user_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    website: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    instagram_handle: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    brand_colors: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    fonts: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    logo_png_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_assets.id", ondelete="SET NULL"), nullable=True
+    )
+    logo_svg_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("business_assets.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+    user: Mapped[User] = relationship(back_populates="brand_profile")
+    logo_png: Mapped["BusinessAsset | None"] = relationship(foreign_keys=[logo_png_asset_id])
+    logo_svg: Mapped["BusinessAsset | None"] = relationship(foreign_keys=[logo_svg_asset_id])
+
+
+class BrandGuideline(Base):
+    __tablename__ = "brand_guidelines"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(ForeignKey("business_assets.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+    user: Mapped[User] = relationship(back_populates="brand_guidelines")
+
+
+class Product(Base):
+    __tablename__ = "products"
+    __table_args__ = (
+        UniqueConstraint("user_id", "sku", name="uq_products_user_sku"),
+        CheckConstraint("price IS NULL OR price >= 0", name="ck_products_price_nonnegative"),
+        Index("ix_products_user_active", "user_id", "is_active"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    offer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+    user: Mapped[User] = relationship(back_populates="products")
+    asset_links: Mapped[list["ProductAsset"]] = relationship(back_populates="product", passive_deletes=True)
+
+
+class ProductAsset(Base):
+    __tablename__ = "product_assets"
+    __table_args__ = (UniqueConstraint("product_id", "asset_id", name="uq_product_assets_product_asset"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("business_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(32), default="primary", nullable=False)
+    created_at: Mapped[datetime] = timestamp_column()
+
+    product: Mapped[Product] = relationship(back_populates="asset_links")
+    asset: Mapped[BusinessAsset] = relationship(back_populates="product_links")
+
+
 class GeneratedImage(Base):
     __tablename__ = "generated_images"
 
@@ -157,6 +276,8 @@ class GeneratedImage(Base):
     source: Mapped[str] = mapped_column(String(64), default=ImageSource.USER_PROMPT.value, nullable=False)
     content_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     theme: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    qa_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    qa_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = timestamp_column()
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -359,4 +480,34 @@ class DailyPostSlot(Base):
     local_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="CLAIMED", nullable=False)
     post_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = timestamp_column()
+
+
+class CanvaConnection(Base):
+    """Per-user Canva OAuth tokens. Plaintext tokens are never stored."""
+
+    __tablename__ = "canva_connections"
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id", name="uq_canva_connections_tenant_user"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    access_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(64), default="connected", nullable=False)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = timestamp_column(on_update=True)
+
+
+class CanvaOAuthState(Base):
+    """One-time OAuth state. The PKCE verifier is encrypted and never returned to the client."""
+
+    __tablename__ = "canva_oauth_states"
+
+    state: Mapped[str] = mapped_column(String(128), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    code_verifier_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = timestamp_column()

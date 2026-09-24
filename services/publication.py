@@ -53,6 +53,7 @@ SECRET_RESPONSE_KEYS = frozenset(
         "token",
         "authorization",
         "openai_api_key",
+        "deepseek_api_key",
         "password",
         "password_hash",
         "jwt_secret",
@@ -256,6 +257,7 @@ class PublicationGateway:
                 {
                     "connected": connected,
                     "source": "environment" if connected else "none",
+                    "environment_configured": connected,
                     "instagram_account_id": self._settings.instagram_account_id or None if connected else None,
                     "status": AccountStatus.CONNECTED.value if connected else AccountStatus.DISCONNECTED.value,
                     "stats": PublicationStats().model_dump(),
@@ -269,7 +271,8 @@ class PublicationGateway:
         )
         payload = {
             "connected": connected,
-            "source": "user",
+            "source": "user" if connected else ("environment" if self._settings.credentials_configured else "none"),
+            "environment_configured": self._settings.credentials_configured,
             "instagram_account_id": account.instagram_account_id if account else None,
             "status": account.status if account else AccountStatus.DISCONNECTED.value,
             "connected_at": account.connected_at.isoformat() if account else None,
@@ -397,6 +400,7 @@ class PublicationGateway:
         festival_sequence: int | None = None,
         caption: str | None = None,
         wait: bool = True,
+        request_id: str | None = None,
     ) -> InstagramPostRecord:
         image_path = getattr(image, "storage_path", None) or getattr(image, "path", None)
         generated_id = getattr(image, "id", None)
@@ -416,6 +420,7 @@ class PublicationGateway:
                 original_filename=getattr(image, "filename", None),
                 caption=caption,
                 wait=wait,
+                request_id=request_id,
                 allow_environment_fallback=True,
             )
         )

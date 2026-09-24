@@ -203,8 +203,8 @@ Coverage that was re-run in the final integration pass:
 ## Security
 
 - Secrets live in environment variables. Source and Dockerfiles do not hard-code API keys.
-- `services/logging.py` redacts passwords, JWTs, `Authorization`, OpenAI keys, and Meta tokens.
-- Instagram user tokens are Fernet-encrypted at rest.
+- `services/logging.py` redacts passwords, JWTs, `Authorization`, OpenAI keys, DeepSeek keys, Canva client secrets, and Meta tokens.
+- Instagram and Canva user tokens are Fernet-encrypted at rest. React never receives them.
 - The Content Agent rejects plans that mention `os.system`, `subprocess`, `eval(`, or `exec(`.
 - The Instagram Agent executes only the six registered tools.
 - Generated-image paths are owner-scoped and sanitized.
@@ -263,6 +263,7 @@ Set `SCHEDULER_ENABLED=true` only with a single worker if you want unattended da
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [AUTHENTICATION.md](AUTHENTICATION.md)
 - [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md)
+- [CANVA.md](CANVA.md)
 - [MEDIA_STORAGE.md](MEDIA_STORAGE.md)
 - [CONTENT_AGENT.md](CONTENT_AGENT.md)
 - [SCHEDULER.md](SCHEDULER.md)

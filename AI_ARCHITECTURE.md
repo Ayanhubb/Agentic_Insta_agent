@@ -135,7 +135,9 @@ From `.env` / `.env.example`:
 | Variable | Purpose |
 | --- | --- |
 | `OPENAI_API_KEY` | Backend secret for the official SDK |
-| `LLM_PROVIDER` | Provider id (`openai`) |
+| `DEEPSEEK_API_KEY` | Backend secret for the official DeepSeek API |
+| `DEEPSEEK_MODEL` | DeepSeek chat and vision model (default `deepseek-flash`) |
+| `LLM_PROVIDER` | Provider id (`openai` or `deepseek`) |
 | `LLM_MODEL` | Chat model name |
 | `IMAGE_PROVIDER` | Image provider id (`openai`) |
 | `IMAGE_MODEL` | Image model name |
@@ -187,7 +189,67 @@ RUN_OPENAI_INTEGRATION=1 pytest -m real_openai
 
 Requirements: `OPENAI_API_KEY` plus configured `LLM_MODEL` / `IMAGE_MODEL`.
 Presence of a key in `.env` is not enough. `pytest.ini` uses
-`-m "not real_openai"` so the default suite cannot spend API credits.
+`-m "not real_openai and not real_deepseek"` so the default suite cannot spend API credits.
+
+## DeepSeek integration
+
+DeepSeek is a text and vision provider. It does not generate images and it does not publish.
+
+```text
+Content Agent
+  → LLMProvider
+    → DeepSeekLLMProvider
+      → POST https://api.deepseek.com/chat/completions
+```
+
+```text
+DeepSeekVisionProvider
+  → same official chat API, model deepseek-flash
+    → image understanding / image QA JSON
+```
+
+`LLM_PROVIDER=deepseek` selects `DeepSeekLLMProvider` from `get_llm_provider()`.
+`VISION_PROVIDER=deepseek` selects `DeepSeekVisionProvider` from `get_vision_provider()`.
+OpenAI remains the image-generation provider.
+
+| Variable | Purpose |
+| --- | --- |
+| `DEEPSEEK_API_KEY` | Backend secret. Never returned, stored, or logged |
+| `DEEPSEEK_MODEL` | Chat and vision model. Default `deepseek-flash` |
+| `DEEPSEEK_BASE_URL` | Official root. Allowlist: `api.deepseek.com`, `localhost`, `127.0.0.1` |
+| `DEEPSEEK_TIMEOUT_SECONDS` | Request timeout (default 30) |
+| `VISION_PROVIDER` | Vision provider id (`deepseek`) |
+
+Capabilities: text reasoning (thinking mode), structured JSON, creative planning, captions, hashtags, festival strategy, image understanding, and image QA.
+
+Vision inputs:
+
+| Input | How it is sent |
+| --- | --- |
+| Public HTTPS URL | Passed as `image_url`. No base64 |
+| Authorized storage reference | Owner-scoped path under `media_root/{stage}/{user_id}/`. Read locally, then base64 |
+| Local image | File must sit inside media, temp, or input storage and include that user's id. Then base64 |
+| Base64 | Used only when the API cannot fetch the image, or when the caller has no URL or file |
+
+Cross-tenant paths and private URLs (`localhost`, loopback, private IPs) are rejected before any API call.
+
+| Code | When |
+| --- | --- |
+| `DEEPSEEK_CONFIGURATION_ERROR` | Missing API key, rejected base URL, or HTTP 401 |
+| `DEEPSEEK_TIMEOUT` | Timeout. Retried within `LLM_MAX_ATTEMPTS` |
+| `DEEPSEEK_RATE_LIMITED` | HTTP 429. Retried within the same budget |
+| `DEEPSEEK_UNAVAILABLE` | HTTP 500/503 or connection failure for text |
+| `VISION_PROVIDER_ERROR` | Vision provider down (HTTP 500/503 or connection failure) |
+| `DEEPSEEK_INVALID_RESPONSE` | Empty, truncated, non-JSON, or schema-invalid output. Malformed JSON is retried |
+| `DEEPSEEK_API_ERROR` | Rejected request (HTTP 400/422). Not retried |
+
+HTTP 400, 401, 402, and 422 are not retried. The API key is omitted from `public_ai_status()`, error messages, and logs (`DEEPSEEK_API_KEY`, `deepseek_api_key`).
+
+Default pytest mocks the DeepSeek HTTP client. Live calls are opt-in:
+
+```bash
+RUN_DEEPSEEK_INTEGRATION=1 pytest -m real_deepseek
+```
 
 ## Agentic boundary
 

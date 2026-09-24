@@ -99,6 +99,16 @@ export interface GeneratedImage {
   image_url?: string | null;
   created_at?: string | null;
   approved_at?: string | null;
+  qa_status?: string | null;
+  product_id?: string | null;
+  offer_id?: string | null;
+  caption?: string | null;
+  theme?: string | null;
+  content_type?: string | null;
+  creative_brief?: string | null;
+  festival?: string | null;
+  business_name?: string | null;
+  product_name?: string | null;
 }
 
 export interface ContentJob {
@@ -197,6 +207,8 @@ export interface BusinessProfile {
 export interface InstagramStatus {
   connected?: boolean;
   status?: string;
+  source?: string | null;
+  environment_configured?: boolean;
   username?: string | null;
   instagram_account_id?: string | null;
   ig_user_id?: string | null;
@@ -206,4 +218,61 @@ export interface InstagramStatus {
 
 export interface HealthResponse {
   status: string;
+}
+
+/** Brand profile from GET/POST /api/v1/brand. */
+export interface BrandColor {
+  name?: string | null;
+  hex: string;
+}
+
+export interface BrandGuidelineItem {
+  id?: string;
+  title?: string;
+  body: string;
+}
+
+export interface BrandAsset {
+  id: string;
+  scope?: string | null;
+  role?: string | null;
+  filename?: string | null;
+  mime_type?: string | null;
+  media_url?: string | null;
+  status?: string | null;
+}
+
+export interface BrandProfile {
+  id?: string;
+  company_name?: string;
+  website?: string | null;
+  instagram_handle?: string | null;
+  brand_colors?: BrandColor[];
+  fonts?: { family: string; weight?: string | null; style?: string | null }[];
+  logo_png?: BrandAsset | null;
+  logo_svg?: BrandAsset | null;
+  logo_png_asset_id?: string | null;
+  guidelines?: BrandGuidelineItem[] | string | null;
+  /** Optional. Current POST /brand ignores unknown keys, so this may not persist yet. */
+  festival_preferences?: string[];
+}
+
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  price?: string | number | null;
+  sku?: string | null;
+  is_active?: boolean;
+  offer?: string | null;
+  image?: BrandAsset | null;
+  media_url?: string | null;
+}
+
+export interface GenerationCreateOptions {
+  product_id?: string;
+  offer_id?: string;
+  festival?: string;
+  use_canva?: boolean;
 }

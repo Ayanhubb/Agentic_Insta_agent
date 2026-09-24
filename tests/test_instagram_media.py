@@ -20,6 +20,35 @@ def _success_handler(request: httpx.Request) -> httpx.Response:
 
 
 @pytest.mark.asyncio
+async def test_create_image_container_sends_caption(tmp_path) -> None:
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        if request.method == "POST" and request.url.path.endswith("/media"):
+            return httpx.Response(200, json={"id": "container-1"})
+        return httpx.Response(400, json={"error": {"message": "unexpected"}})
+
+    settings = test_settings(tmp_path)
+    settings.meta_graph_api_base_url = "https://graph.facebook.com"
+    settings.meta_api_version = "v21.0"
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
+    service = InstagramMediaService(settings, client=client)
+    created = await service.create_image_container(
+        "https://cdn.example.test/ig/photo.jpg",
+        caption="Heritage kundan, Pal Jewels.",
+    )
+    assert created["instagram_container_id"] == "container-1"
+    body = captured[0].content.decode("utf-8")
+    from urllib.parse import parse_qs, unquote_plus
+
+    parsed = parse_qs(body)
+    caption = unquote_plus((parsed.get("caption") or [""])[0].replace("+", " "))
+    assert caption == "Heritage kundan, Pal Jewels."
+    await service.aclose()
+
+
+@pytest.mark.asyncio
 async def test_create_and_publish_with_mocked_graph_api(tmp_path) -> None:
     settings = test_settings(tmp_path)
     settings.meta_graph_api_base_url = "https://graph.facebook.com"

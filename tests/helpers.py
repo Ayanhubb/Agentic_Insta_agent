@@ -196,8 +196,18 @@ def default_success_tools() -> list[ScriptedTool]:
 class DummyInstagramClient:
     def __init__(self) -> None:
         self._published = 0
+        self.last_caption: str | None = None
+        self.last_image_url: str | None = None
 
-    async def create_image_container(self, image_url: str, *, task_id: str | None = None) -> dict[str, Any]:
+    async def create_image_container(
+        self,
+        image_url: str,
+        *,
+        task_id: str | None = None,
+        caption: str | None = None,
+    ) -> dict[str, Any]:
+        self.last_image_url = image_url
+        self.last_caption = caption
         return {"id": "container-1", "instagram_container_id": "container-1"}
 
     async def get_container_status(self, container_id: str) -> dict[str, Any]:

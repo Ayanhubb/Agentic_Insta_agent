@@ -145,7 +145,7 @@ class OpenAIImageGenerationProvider(ImageGenerationProvider):
         client = self._get_client()
         kwargs: dict[str, Any] = {
             "model": self._settings.image_model,
-            "prompt": request.prompt,
+            "prompt": _prompt_with_references(request),
             "n": 1,
         }
         if self._settings.image_size:
@@ -262,6 +262,17 @@ def _api_error(message: str, *, retryable: bool, status: int | None = None) -> A
         retryable=retryable,
         details=details,
     )
+
+
+def _prompt_with_references(request: ImageGenerationRequest) -> str:
+    """Append sourced reference labels. Asset bytes are sent separately by the edit path."""
+    if not request.references:
+        return request.prompt
+    lines = [request.prompt, "Reference subjects, use only these:"]
+    for ref in request.references:
+        label = " ".join((ref.label or "").split())
+        lines.append(f"- {ref.kind} {ref.asset_id}: {label}")
+    return "\n".join(lines)[:4000]
 
 
 def source_from_reason(reason: str) -> ContentSource:

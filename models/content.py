@@ -151,6 +151,13 @@ class ContentPlan(BaseModel):
     mode: ContentMode | None = None
     source: ContentSource | None = None
     diversity_notes: str | None = None
+    product_ids: list[str] = Field(default_factory=list)
+    asset_ids: list[str] = Field(default_factory=list)
+    logo_required: bool = False
+    logo_asset_id: str | None = None
+    offer_text: str | None = None
+    qa_requirements: dict[str, Any] | None = None
+    canva_action: str | None = None
 
 
 class GeneratedImageSnapshot(BaseModel):
@@ -230,6 +237,8 @@ class ContentStrategyRequest(BaseModel):
     now: datetime | None = None
     generate_image: bool = True
     task_id: str | None = None
+    correlation_id: str | None = None
+    request_id: str | None = None
 
     @field_validator("business_profile", mode="before")
     @classmethod

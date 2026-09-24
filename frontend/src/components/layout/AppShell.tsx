@@ -9,10 +9,18 @@ const NAV = [
     { to: "/generate", label: "AI Generator" },
     { to: "/images", label: "Images" },
     { to: "/posts", label: "Posts" },
+    { to: "/campaigns", label: "Campaigns" },
+  ]},
+  { section: "Catalog", items: [
+    { to: "/brand", label: "Brand" },
+    { to: "/products", label: "Products" },
+    { to: "/assets", label: "Assets" },
   ]},
   { section: "Automation", items: [
     { to: "/automation", label: "Automation" },
     { to: "/festivals", label: "Festivals" },
+    { to: "/ai-settings", label: "AI settings" },
+    { to: "/mcp", label: "MCP" },
   ]},
   { section: "Account", items: [
     { to: "/business", label: "Business" },

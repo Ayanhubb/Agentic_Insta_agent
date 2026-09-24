@@ -7,6 +7,40 @@ from config import Settings
 from tests.helpers import DummyInstagramClient, auth_client_headers, write_jpeg
 
 
+def test_publish_endpoint_forwards_caption(tmp_settings: Settings, tmp_path: Path) -> None:
+    dummy = DummyInstagramClient()
+    app = create_app(tmp_settings, instagram_client=dummy)  # type: ignore[arg-type]
+    image_path = write_jpeg(tmp_path / "photo.jpg")
+    with TestClient(app) as client:
+        headers = auth_client_headers(client)
+        with image_path.open("rb") as handle:
+            response = client.post(
+                "/api/v1/instagram/publish?wait=true",
+                files={"image": ("photo.jpg", handle, "image/jpeg")},
+                data={"caption": "Kundan necklace, Pal Jewels Kolkata"},
+                headers=headers,
+            )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert dummy.last_caption == "Kundan necklace, Pal Jewels Kolkata"
+
+
+def test_publish_endpoint_rejects_long_caption(tmp_settings: Settings, tmp_path: Path) -> None:
+    app = create_app(tmp_settings, instagram_client=DummyInstagramClient())  # type: ignore[arg-type]
+    image_path = write_jpeg(tmp_path / "photo.jpg")
+    with TestClient(app) as client:
+        headers = auth_client_headers(client)
+        with image_path.open("rb") as handle:
+            response = client.post(
+                "/api/v1/instagram/publish?wait=true",
+                files={"image": ("photo.jpg", handle, "image/jpeg")},
+                data={"caption": "x" * 2201},
+                headers=headers,
+            )
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+
+
 def test_publish_endpoint_success(tmp_settings: Settings, tmp_path: Path) -> None:
     app = create_app(tmp_settings, instagram_client=DummyInstagramClient())  # type: ignore[arg-type]
     image_path = write_jpeg(tmp_path / "photo.jpg")

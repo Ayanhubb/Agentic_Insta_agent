@@ -19,9 +19,11 @@ export const instagramApi = {
     await request(API.instagram.disconnect, { method: "POST" });
   },
 
-  async publish(image: File, wait = false): Promise<PublishResponse> {
+  async publish(image: File, wait = false, caption?: string): Promise<PublishResponse> {
     const form = new FormData();
     form.append("image", image);
+    const text = caption?.trim();
+    if (text) form.append("caption", text);
     const query = wait ? "?wait=true" : "";
     return request<PublishResponse>(`${API.instagram.publish}${query}`, {
       method: "POST",

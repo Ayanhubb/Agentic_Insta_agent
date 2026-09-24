@@ -32,6 +32,13 @@ def _int_env(name: str, default: int) -> int:
     return int(raw) if raw else default
 
 
+def _bool_env(name: str, default: bool = False) -> bool:
+    raw = _optional_env(name)
+    if not raw:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -86,8 +93,17 @@ class Settings(BaseModel):
     openai_api_key: str = ""
     llm_provider: str = "openai"
     llm_model: str = ""
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-flash"
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_timeout_seconds: float = 30.0
+    vision_provider: str = "deepseek"
     image_provider: str = "openai"
     image_model: str = ""
+    openai_image_model: str = ""
+    openai_image_quality: str = ""
+    openai_image_output_format: str = ""
+    openai_image_size: str = ""
     llm_max_attempts: int = 3
     image_max_attempts: int = 3
     llm_temperature: float = 0.4
@@ -106,6 +122,20 @@ class Settings(BaseModel):
     scheduler_enabled: bool = False
     scheduler_interval_seconds: int = 60
     default_timezone: str = "Asia/Kolkata"
+
+    # Official Canva remote MCP. Disabled unless CANVA_ENABLED is set.
+    # Image generation does not use these settings.
+    canva_enabled: bool = False
+    canva_mcp_url: str = "https://mcp.canva.com/mcp"
+    canva_authorize_url: str = "https://mcp.canva.com/authorize"
+    canva_token_url: str = "https://mcp.canva.com/token"
+    canva_client_id: str = ""
+    canva_client_secret: str = ""
+    canva_redirect_uri: str = ""
+    canva_oauth_scopes: str = ""
+    canva_timeout_seconds: float = 60.0
+    canva_oauth_success_url: str = ""
+    canva_allow_unofficial_endpoint: bool = False
 
     @model_validator(mode="after")
     def normalize(self) -> "Settings":
@@ -128,6 +158,11 @@ class Settings(BaseModel):
         if self.media_poll_interval_seconds >= 0:
             self.container_ready_delay_seconds = self.media_poll_interval_seconds
         self.meta_graph_api_base_url = self.meta_graph_api_base_url.rstrip("/")
+        if not self.image_model.strip() and self.openai_image_model.strip():
+            self.image_model = self.openai_image_model.strip()
+        if self.openai_image_size.strip():
+            self.image_size = self.openai_image_size.strip()
+        self.deepseek_base_url = (self.deepseek_base_url or "https://api.deepseek.com").rstrip("/")
         return self
 
     @property
@@ -138,14 +173,44 @@ class Settings(BaseModel):
     def openai_configured(self) -> bool:
         return bool(self.openai_api_key.strip())
 
+    @property
+    def deepseek_configured(self) -> bool:
+        return bool(self.deepseek_api_key.strip())
+
+    @property
+    def canva_configured(self) -> bool:
+        """True when Canva is enabled and this app can start per-user OAuth."""
+        if not self.canva_enabled:
+            return False
+        client_id = self.canva_client_id.strip()
+        if not client_id or not self.canva_redirect_uri.strip():
+            return False
+        if client_id.startswith("https://"):
+            return True
+        return bool(self.canva_client_secret.strip())
+
+    def public_canva_status(self) -> dict[str, str | bool]:
+        """Safe Canva configuration. Never includes client secrets or user tokens."""
+        return {
+            "enabled": self.canva_enabled,
+            "configured": self.canva_configured,
+            "mcp_host": urlparse(self.canva_mcp_url).hostname or "",
+        }
+
     def public_ai_status(self) -> dict[str, str | bool]:
-        """Safe AI configuration for diagnostics. Never includes the API key."""
+        """Safe AI configuration for diagnostics. Never includes API keys."""
         return {
             "llm_provider": self.llm_provider,
             "llm_model": self.llm_model,
             "image_provider": self.image_provider,
             "image_model": self.image_model,
+            "vision_provider": self.vision_provider,
+            "deepseek_model": self.deepseek_model or "deepseek-flash",
             "openai_configured": self.openai_configured,
+            "deepseek_configured": self.deepseek_configured,
+            "canva_enabled": self.canva_enabled,
+            "canva_configured": self.canva_configured,
+            "mcp_enabled": True,
         }
 
     @property
@@ -185,6 +250,7 @@ class Settings(BaseModel):
             self.media_root / "generated",
             self.media_root / "prepared",
             self.media_root / "published",
+            self.media_root / "assets",
             self.temp_dir,
             self.input_dir,
             self.output_dir,
@@ -230,8 +296,17 @@ class Settings(BaseModel):
             openai_api_key=_optional_env("OPENAI_API_KEY"),
             llm_provider=_optional_env("LLM_PROVIDER") or "openai",
             llm_model=_optional_env("LLM_MODEL"),
+            deepseek_api_key=_optional_env("DEEPSEEK_API_KEY"),
+            deepseek_model=_optional_env("DEEPSEEK_MODEL") or "deepseek-flash",
+            deepseek_base_url=_optional_env("DEEPSEEK_BASE_URL") or "https://api.deepseek.com",
+            deepseek_timeout_seconds=_float_env("DEEPSEEK_TIMEOUT_SECONDS", 30.0),
+            vision_provider=_optional_env("VISION_PROVIDER") or "deepseek",
             image_provider=_optional_env("IMAGE_PROVIDER") or "openai",
             image_model=_optional_env("IMAGE_MODEL"),
+            openai_image_model=_optional_env("OPENAI_IMAGE_MODEL"),
+            openai_image_quality=_optional_env("OPENAI_IMAGE_QUALITY"),
+            openai_image_output_format=_optional_env("OPENAI_IMAGE_OUTPUT_FORMAT"),
+            openai_image_size=_optional_env("OPENAI_IMAGE_SIZE"),
             llm_max_attempts=_int_env("LLM_MAX_ATTEMPTS", 3),
             image_max_attempts=_int_env("IMAGE_MAX_ATTEMPTS", 3),
             llm_temperature=_float_env("LLM_TEMPERATURE", 0.4),
@@ -251,6 +326,17 @@ class Settings(BaseModel):
             scheduler_enabled=_optional_env("SCHEDULER_ENABLED").lower() in {"1", "true", "yes"},
             scheduler_interval_seconds=_int_env("SCHEDULER_INTERVAL_SECONDS", 60),
             default_timezone=_optional_env("DEFAULT_TIMEZONE") or "Asia/Kolkata",
+            canva_enabled=_bool_env("CANVA_ENABLED", False),
+            canva_mcp_url=_optional_env("CANVA_MCP_URL") or "https://mcp.canva.com/mcp",
+            canva_authorize_url=_optional_env("CANVA_AUTHORIZE_URL") or "https://mcp.canva.com/authorize",
+            canva_token_url=_optional_env("CANVA_TOKEN_URL") or "https://mcp.canva.com/token",
+            canva_client_id=_optional_env("CANVA_CLIENT_ID"),
+            canva_client_secret=_optional_env("CANVA_CLIENT_SECRET"),
+            canva_redirect_uri=_optional_env("CANVA_REDIRECT_URI"),
+            canva_oauth_scopes=_optional_env("CANVA_OAUTH_SCOPES"),
+            canva_timeout_seconds=_float_env("CANVA_TIMEOUT_SECONDS", 60.0),
+            canva_oauth_success_url=_optional_env("CANVA_OAUTH_SUCCESS_URL"),
+            canva_allow_unofficial_endpoint=_bool_env("CANVA_ALLOW_UNOFFICIAL_ENDPOINT", False),
         )
 
 

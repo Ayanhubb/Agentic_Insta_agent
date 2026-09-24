@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { BrandPanel } from "../components/studio/BrandPanel";
+import { OffersPanel } from "../components/studio/OffersPanel";
+import { ProductPanel } from "../components/studio/ProductPanel";
+import { ProviderStatus } from "../components/studio/ProviderStatus";
 import { Card } from "../components/ui/Card";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/States";
 import { StatusBadge } from "../components/ui/StatusBadge";
@@ -158,6 +162,23 @@ export function DashboardPage() {
           <EmptyState title="No images yet" body="Generate a preview from the AI Generator." />
         )}
       </Card>
+      <div className="grid two" style={{ marginTop: 20 }}>
+        <Card title="Company and brand">
+          <BrandPanel showFestivals />
+        </Card>
+        <Card title="Products">
+          <ProductPanel />
+        </Card>
+      </div>
+      <div className="grid two" style={{ marginTop: 20 }}>
+        <Card title="Active offers">
+          <OffersPanel />
+        </Card>
+        <Card title="AI and Canva">
+          <ProviderStatus />
+          <p className="muted">Automation: daily {dailyOn ? "On" : "Off"}, festival {festivalOn ? "On" : "Off"}.</p>
+        </Card>
+      </div>
       <Card title="Recent posts" className="mt">
         {posts.length ? (
           <ul className="stack">

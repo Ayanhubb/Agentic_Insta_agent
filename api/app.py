@@ -14,6 +14,9 @@ from ai import get_image_generation_provider, get_llm_provider
 from ai.mocks import MockImageGenerationProvider, MockLLMProvider
 from agent.agent import InstagramAgent
 from agent.instagram_tasks import bind_publication_gateway
+from api.asset_routes import router as asset_router
+from api.canva_routes import router as canva_router
+from backend.integrations.canva import CanvaAdapter
 from api.auth_routes import admin_router, router as auth_router
 from db.repositories import SessionRepository, UserRepository
 from api.middleware import RequestContextMiddleware
@@ -34,12 +37,24 @@ from services.publication import PublicationGateway
 from services.publication_store import InMemoryPublicationStore
 
 
+def _select_llm(settings: Settings):
+    provider = (settings.llm_provider or "openai").strip().lower()
+    if provider == "deepseek":
+        if settings.deepseek_configured and settings.deepseek_model.strip():
+            return get_llm_provider(settings)
+        return MockLLMProvider()
+    if settings.openai_configured and settings.llm_model.strip():
+        return get_llm_provider(settings)
+    return MockLLMProvider()
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     instagram_client: InstagramClient | None = None,
     llm_provider=None,
     image_provider=None,
+    creative_model=None,
     clock: Clock | None = None,
     current_user_provider=None,
     publication_store=None,
@@ -63,15 +78,18 @@ def create_app(
     clock = clock or Clock()
 
     if llm_provider is None:
-        if settings.openai_configured and settings.llm_model.strip():
-            llm_provider = get_llm_provider(settings)
-        else:
-            llm_provider = MockLLMProvider()
+        llm_provider = _select_llm(settings)
     if image_provider is None:
-        if settings.openai_configured and settings.image_model.strip():
+        if settings.openai_configured and (settings.image_model.strip() or settings.openai_image_model.strip()):
             image_provider = get_image_generation_provider(settings, storage=media_service)
         else:
             image_provider = MockImageGenerationProvider(media_service)
+    from scheduler.integrations import resolve_festival_mcp, resolve_vision
+
+    vision_provider = resolve_vision(settings)
+    festival_mcp = resolve_festival_mcp(settings)
+    canva = CanvaAdapter(settings, session_factory=factory)
+    canva_client = canva if settings.canva_enabled else None
 
     stop_event = asyncio.Event()
     runner = AutomationRunner(
@@ -115,6 +133,8 @@ def create_app(
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(platform_router, prefix="/api/v1")
+    app.include_router(asset_router, prefix="/api/v1")
+    app.include_router(canva_router, prefix="/api/v1")
     app.include_router(create_router(settings, store, agent_factory, media_service=media_service), prefix="/api/v1")
 
     static_dir = settings.static_dir
@@ -182,6 +202,15 @@ def create_app(
     app.state.llm_provider = llm_provider
     app.state.images = image_provider
     app.state.image_provider = image_provider
+    if creative_model is None:
+        from ai.creative_model import get_creative_model
+
+        creative_model = get_creative_model(settings)
+    app.state.creative_model = creative_model
+    app.state.vision_provider = vision_provider
+    app.state.festival_mcp = festival_mcp
+    app.state.canva = canva
+    app.state.canva_client = canva_client
     app.state.instagram_client = client
     app.state.engine = engine
     app.state.session_factory = factory

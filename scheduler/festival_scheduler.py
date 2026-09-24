@@ -5,24 +5,28 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from agent.content_agent import ContentAgent
 from festivals.festival_service import FestivalService
 from config import Settings
-from db.models import AutomationSettings, FestivalCampaign, FestivalPost, GeneratedImage, User
+from db.models import AutomationSettings, FestivalCampaign, User
 from db.repositories import (
     AutomationRepository,
     BusinessRepository,
     InstagramAccountRepository,
     UserRepository,
 )
-from models.content import ContentMode, ContentStrategyRequest
+from models.content import ContentMode
 from models.errors import AppError
 from services.clock import Clock
+from services.metrics import PipelineMetrics
 from services.publication import PublicationService
 from scheduler.job_manager import JobManager
-from scheduler.policies import attach_publication, automation_context
+from scheduler.pipeline import CampaignPipeline
+from scheduler.policies import attach_publication
 
 
 class FestivalScheduler:
@@ -33,6 +37,11 @@ class FestivalScheduler:
         content_agent: ContentAgent,
         publisher: PublicationService,
         clock: Clock,
+        *,
+        vision: Any | None = None,
+        festival_mcp: Any | None = None,
+        canva: Any | None = None,
+        metrics: PipelineMetrics | None = None,
     ) -> None:
         self._settings = settings
         self._session = session
@@ -45,6 +54,16 @@ class FestivalScheduler:
         self._automation = AutomationRepository(session)
         self._festivals = FestivalService(session)
         self._jobs = JobManager(session)
+        self._pipeline = CampaignPipeline(
+            content_agent,
+            publisher,
+            session,
+            vision=vision,
+            festival_mcp=festival_mcp,
+            canva=canva,
+            metrics=metrics,
+        )
+        self.outcomes: list[Any] = []
 
     async def run_user(
         self,
@@ -74,6 +93,7 @@ class FestivalScheduler:
             allow_same_day=allow_same_day,
         ):
             if campaign.remaining_posts <= 0:
+                self._pipeline._metrics.increment("duplicate_prevented")
                 results.append(
                     {
                         "status": "skipped",
@@ -112,55 +132,27 @@ class FestivalScheduler:
                     campaign, sequence, status="PENDING", scheduled_for=scheduled_at
                 )
 
+            festival_payload = {
+                "name": campaign.festival_name,
+                "festival_name": campaign.festival_name,
+                "date": campaign.festival_date,
+                "year": campaign.year,
+                "campaign_id": campaign.id,
+                "required_posts": campaign.required_posts,
+                "published_posts": campaign.published_posts,
+            }
             try:
-                result = await self._content.run(
-                    ContentStrategyRequest(
-                        user_id=user.id,
-                        mode=ContentMode.FESTIVAL,
-                        business_profile=profile,
-                        festival={
-                            "name": campaign.festival_name,
-                            "festival_name": campaign.festival_name,
-                            "date": campaign.festival_date,
-                            "year": campaign.year,
-                            "campaign_id": campaign.id,
-                            "required_posts": campaign.required_posts,
-                            "published_posts": campaign.published_posts,
-                        },
-                        automation=automation_context(automation),
-                        instagram_account_id=account.id if account else None,
-                        now=self._clock.now(tz),
-                    )
-                )
-            except AppError as exc:
-                fest_post.status = "FAILED"
-                results.append({"status": "failed", "reason": exc.code.value, "campaign": campaign.id})
-                continue
-            if not result.generated_image or not result.generated_image.id:
-                fest_post.status = "FAILED"
-                results.append({"status": "failed", "reason": "generation_failed", "campaign": campaign.id})
-                continue
-
-            image = self._session.get(GeneratedImage, result.generated_image.id)
-            fest_post.generated_image_id = image.id if image else None
-            if not result.handoff.auto_approved or image is None:
-                results.append(
-                    {
-                        "status": "generated_pending_approval",
-                        "campaign": campaign.id,
-                        "remaining_posts": str(campaign.remaining_posts),
-                    }
-                )
-                continue
-            self._session.commit()
-            try:
-                post = await self._publisher.publish_generated_image(
+                outcome = await self._pipeline.execute(
                     user_id=user.id,
-                    image=image,
+                    mode=ContentMode.FESTIVAL,
+                    profile=profile,
+                    automation=automation,
                     account=account,
+                    now=self._clock.now(tz),
                     post_type="FESTIVAL",
                     trigger="FESTIVAL_AUTOMATION",
                     scheduled_date=today,
+                    festival=festival_payload,
                     festival_campaign_id=campaign.id,
                     festival_sequence=sequence,
                 )
@@ -168,9 +160,38 @@ class FestivalScheduler:
                 fest_post.status = "FAILED"
                 results.append({"status": "failed", "reason": exc.code.value, "campaign": campaign.id})
                 continue
+            self.outcomes.append(outcome)
+            fest_post.generated_image_id = outcome.image_id
+            identity = {
+                "correlation_id": outcome.correlation_id,
+                "request_id": outcome.request_id,
+                "task_id": outcome.task_id,
+            }
+            if outcome.post is None:
+                if outcome.retryable or not outcome.image_id:
+                    fest_post.status = "FAILED"
+                    results.append(
+                        {
+                            "status": "failed",
+                            "reason": outcome.reason or "generation_failed",
+                            "campaign": campaign.id,
+                            **identity,
+                        }
+                    )
+                else:
+                    results.append(
+                        {
+                            "status": "generated_pending_approval",
+                            "reason": outcome.reason,
+                            "campaign": campaign.id,
+                            "remaining_posts": str(campaign.remaining_posts),
+                            **identity,
+                        }
+                    )
+                continue
             post = attach_publication(
                 self._session,
-                post,
+                outcome.post,
                 account=account,
                 scheduled_date=today,
                 post_type="FESTIVAL",
@@ -185,6 +206,9 @@ class FestivalScheduler:
                     "generated_posts": str(campaign.generated_posts),
                     "published_posts": str(campaign.published_posts),
                     "remaining_posts": str(campaign.remaining_posts),
+                    "correlation_id": outcome.correlation_id,
+                    "request_id": outcome.request_id,
+                    "task_id": outcome.task_id,
                 }
             )
         self._jobs.mark_run(user.id, "FESTIVAL")

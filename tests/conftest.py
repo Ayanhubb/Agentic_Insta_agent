@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,17 @@ def block_real_openai_clients(monkeypatch: pytest.MonkeyPatch, request: pytest.F
 
     monkeypatch.setattr("ai.openai_llm.AsyncOpenAI", _blocked)
     monkeypatch.setattr("ai.openai_image_generator.AsyncOpenAI", _blocked)
+    monkeypatch.setattr("backend.ai.image.openai.AsyncOpenAI", _blocked)
+
+    async def _blocked_deepseek_chat(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        del self, payload
+        raise RuntimeError("Default pytest must never make real DeepSeek requests")
+
+    if importlib.util.find_spec("ai.llm.deepseek") is not None:
+        try:
+            monkeypatch.setattr("ai.llm.deepseek.DeepSeekTransport.chat", _blocked_deepseek_chat)
+        except (ImportError, AttributeError):
+            pass
     yield
 
 

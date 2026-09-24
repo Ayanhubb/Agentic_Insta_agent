@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from auth.deps import require_password_ok
@@ -30,6 +30,22 @@ from services.publication import InstagramPublicationRequest
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 64 * 1024
+CAPTION_MAX_LENGTH = 2200
+
+
+def _normalize_caption(caption: str | None) -> str | None:
+    if caption is None:
+        return None
+    text = caption.strip()
+    if not text:
+        return None
+    if len(text) > CAPTION_MAX_LENGTH:
+        raise AppError(
+            ErrorCode.INVALID_REQUEST,
+            f"Caption must be {CAPTION_MAX_LENGTH} characters or fewer.",
+            http_status=400,
+        )
+    return text
 
 
 def _safe_suffix(content_type: str | None) -> str:
@@ -107,6 +123,7 @@ def create_router(
         request: Request,
         image: Annotated[UploadFile | None, File()] = None,
         file: Annotated[UploadFile | None, File()] = None,
+        caption: Annotated[str | None, Form()] = None,
         wait: Annotated[bool, Query()] = False,
         user: User = Depends(require_password_ok),
     ) -> JSONResponse:
@@ -116,6 +133,7 @@ def create_router(
         request_id = getattr(request.state, "request_id", str(uuid4()))
         saved_path = await _save_upload(upload, settings)
         user_id = user.id
+        shared_caption = _normalize_caption(caption)
         gateway = getattr(request.app.state, "publication_gateway", None)
         if user_id and gateway is not None:
             state = await gateway.enqueue_publication(
@@ -125,6 +143,7 @@ def create_router(
                     source="UPLOAD",
                     original_filename=Path(upload.filename or "upload").name,
                     request_id=request_id,
+                    caption=shared_caption,
                     wait=wait,
                     allow_environment_fallback=True,
                 )
@@ -145,6 +164,7 @@ def create_router(
             user_id=user.id,
             image_path=str(saved_path),
             original_filename=Path(upload.filename or "upload").name,
+            caption=shared_caption,
             current_step="pending",
         )
         log_step(

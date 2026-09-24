@@ -36,6 +36,10 @@ class DuplicateRecordError(PersistenceError):
             entity = "scheduled_jobs"
             constraint = "uq_scheduled_jobs_user_account_type"
             message = "An autonomous job of this type already exists for this Instagram account."
+        elif "uq_products_user_sku" in orig or ("products" in lowered and "sku" in lowered):
+            entity = "products"
+            constraint = "uq_products_user_sku"
+            message = "A product with this SKU already exists."
         elif "festival_campaigns" in lowered:
             entity = "festival_campaigns"
             constraint = "uq_festival_campaigns_user_name_year"

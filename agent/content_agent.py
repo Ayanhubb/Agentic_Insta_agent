@@ -86,6 +86,14 @@ def _tokens(text: str) -> set[str]:
     return {part for part in re.findall(r"[a-z0-9]{3,}", (text or "").lower())}
 
 
+def _flag_true(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "required"}
+    return False
+
+
 class TokenOverlapSimilarity:
     def score(self, left: str, right: str) -> float:
         a, b = _tokens(left), _tokens(right)
@@ -243,6 +251,7 @@ class ContentAgent:
         diversity: DiversityPolicy | None = None,
         max_plan_attempts: int = 3,
         images: Any | None = None,
+        event_sink: Any | None = None,
     ) -> None:
         self._llm = llm
         self._images = image_generator if image_generator is not None else images
@@ -255,6 +264,32 @@ class ContentAgent:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._diversity = diversity or DiversityPolicy()
         self._max_plan_attempts = max(1, max_plan_attempts)
+        self._event_sink = event_sink
+
+    def bind_event_sink(self, sink: Any | None) -> None:
+        self._event_sink = sink
+
+    def _emit_stage(self, name: str, request: ContentStrategyRequest, **detail: Any) -> None:
+        status = str(detail.pop("status", "success"))
+        sink = self._event_sink
+        if sink is not None and hasattr(sink, "record"):
+            sink.record(
+                name,
+                status=status,
+                task_id=request.task_id,
+                request_id=request.request_id,
+                correlation_id=request.correlation_id,
+                **detail,
+            )
+            return
+        log_step(
+            logger,
+            event=name,
+            task_id=request.task_id or "-",
+            request_id=request.request_id,
+            status=status,
+            correlation_id=request.correlation_id,
+        )
 
     async def create_plan(self, request: ContentStrategyRequest) -> ContentPlan:
         result = await self._plan(request, generate_image=False)
@@ -298,7 +333,7 @@ class ContentAgent:
             try:
                 raw = await self._call_llm(request, profile, automation, festival, history, attempt=attempts)
                 self._reject_policy(raw)
-                plan = self._parse_plan(raw, mode, source)
+                plan = self._ground_catalog(self._parse_plan(raw, mode, source), profile)
                 if mode == ContentMode.FESTIVAL:
                     self._reject_generic_festival(plan, profile)
                 diversity = self._diversity.evaluate(plan, history)
@@ -315,11 +350,14 @@ class ContentAgent:
         if plan is None:
             raise last_error or AppError(ErrorCode.CONTENT_INVALID_PLAN, "Could not create a content plan.")
 
+        self._emit_stage("CONTENT_PLAN_CREATED", request, status="success", mode=mode.value)
         generated = None
         if generate_image:
+            self._emit_stage("IMAGE_GENERATION_STARTED", request, status="success")
             generated = await self._generate_image(request, plan, source)
             if self._store and hasattr(self._store, "save_generated_image"):
                 generated = await self._store.save_generated_image(generated)
+            self._emit_stage("IMAGE_GENERATED", request, status="success", image_id=generated.id if generated else None)
 
         auto_approve = False
         if mode == ContentMode.DAILY and automation and automation.auto_daily_publish:
@@ -361,7 +399,6 @@ class ContentAgent:
             requires_instagram_agent=True,
             auto_approved=auto_approve,
         )
-        log_step(logger, event="CONTENT_PLAN_CREATED", task_id=task.id, status="success", mode=mode.value)
         return ContentStrategyResult(
             task=task,
             plan=plan,
@@ -491,6 +528,26 @@ class ContentAgent:
         if any(token in blob for token in ("os.system", "subprocess", "shell=true", "eval(", "exec(")):
             raise AppError(ErrorCode.CONTENT_POLICY_VIOLATION, "The content plan attempted to execute code.")
 
+    def _ground_catalog(self, plan: ContentPlan, profile: BusinessProfileSnapshot) -> ContentPlan:
+        """Name a catalog product when a product plan omitted one.
+
+        Automatic approval requires that name. The catalog stays the source of truth.
+        """
+        if str(plan.featured_product_or_service or "").strip() or plan.product_ids:
+            return plan
+        if plan.content_type not in {ContentType.PRODUCT, ContentType.PROMOTION, ContentType.NEW_ARRIVAL}:
+            return plan
+        raw = profile.products
+        if isinstance(raw, str):
+            names = [part.strip() for part in re.split(r"[,;\n]", raw) if part.strip()]
+        elif isinstance(raw, (list, tuple)):
+            names = [str(item).strip() for item in raw if str(item).strip()]
+        else:
+            names = []
+        if not names:
+            return plan
+        return plan.model_copy(update={"featured_product_or_service": names[0], "product_ids": [names[0]]})
+
     def _parse_plan(self, raw: Any, mode: ContentMode, source: ContentSource) -> ContentPlan:
         if isinstance(raw, ContentPlan):
             return raw
@@ -515,16 +572,30 @@ class ContentAgent:
             reason = str(raw.get("reason") or "").strip()
             if not theme or not image_prompt or not business_context or not reason or len(image_prompt) < 20:
                 raise AppError(ErrorCode.OPENAI_INVALID_RESPONSE, "The language model omitted required plan fields.")
+            product_ids = raw.get("product_ids") or []
+            if isinstance(product_ids, str):
+                product_ids = [product_ids]
+            asset_ids = raw.get("asset_ids") or []
+            if isinstance(asset_ids, str):
+                asset_ids = [asset_ids]
+            requirements = raw.get("qa_requirements")
             return ContentPlan(
                 content_type=mapped,
                 theme=theme,
                 image_prompt=image_prompt,
                 business_context=business_context,
                 reason=reason,
-                caption_hint=raw.get("caption_hint"),
+                caption_hint=raw.get("caption_hint") or raw.get("caption"),
                 featured_product_or_service=raw.get("featured_product_or_service"),
                 mode=mode,
                 source=source,
+                product_ids=[str(item) for item in product_ids if str(item).strip()],
+                asset_ids=[str(item) for item in asset_ids if str(item).strip()],
+                logo_required=_flag_true(raw.get("logo_required")),
+                logo_asset_id=raw.get("logo_asset_id"),
+                offer_text=raw.get("offer_text"),
+                qa_requirements=requirements if isinstance(requirements, dict) else None,
+                canva_action=raw.get("canva_action"),
             )
         except AppError:
             raise

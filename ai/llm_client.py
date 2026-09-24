@@ -28,6 +28,10 @@ def get_llm_provider(settings: Settings, *, client: object | None = None) -> LLM
         from ai.openai_llm import OpenAILLMProvider
 
         return OpenAILLMProvider(settings, client=client)
+    if name == "deepseek":
+        from ai.llm.deepseek import DeepSeekLLMProvider
+
+        return DeepSeekLLMProvider(settings, client=client)
     raise AppError(
         ErrorCode.OPENAI_CONFIGURATION_ERROR,
         "The configured LLM provider is not supported.",

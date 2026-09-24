@@ -83,6 +83,11 @@ def test_database_creation_creates_required_tables(engine) -> None:
         "automation_settings",
         "sessions",
         "daily_post_slots",
+        "business_assets",
+        "brand_profiles",
+        "brand_guidelines",
+        "products",
+        "product_assets",
     }
     assert expected.issubset(names)
 

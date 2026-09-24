@@ -44,7 +44,11 @@ GRAPH_DAILY_PUBLISH_SUBCODES = {2207042}
 
 class InstagramClient(Protocol):
     async def create_image_container(
-        self, image_url: str, *, task_id: str | None = None
+        self,
+        image_url: str,
+        *,
+        task_id: str | None = None,
+        caption: str | None = None,
     ) -> dict[str, Any]: ...
 
     async def get_container_status(self, container_id: str) -> dict[str, Any]: ...
@@ -373,14 +377,21 @@ class InstagramMediaService:
         raise AppError(fallback, "Instagram API request failed.", http_status=502)
 
     async def create_image_container(
-        self, image_url: str, *, task_id: str | None = None
+        self,
+        image_url: str,
+        *,
+        task_id: str | None = None,
+        caption: str | None = None,
     ) -> dict[str, Any]:
         self._validate_image_url(image_url)
         account_id = self._settings.instagram_account_id.strip()
+        form: dict[str, Any] = {"image_url": image_url}
+        if caption and caption.strip():
+            form["caption"] = caption.strip()
         payload = await self._request(
             "POST",
             f"{account_id}/media",
-            form={"image_url": image_url},
+            form=form,
             fallback=ErrorCode.MEDIA_CREATION_FAILED,
             certainty_on_transport_failure=OperationCertainty.UNKNOWN,
         )
@@ -575,7 +586,11 @@ class InstagramMediaCreator(Tool):
                 "A public image URL is required before creating media.",
                 http_status=500,
             )
-        created = await self._client.create_image_container(state.image_url, task_id=state.task_id)
+        created = await self._client.create_image_container(
+            state.image_url,
+            task_id=state.task_id,
+            caption=state.caption,
+        )
         container_id = str(created["instagram_container_id"])
         status_code = await self._client.wait_until_ready(container_id)
         return Observation(

@@ -16,29 +16,73 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"(META_ACCESS_TOKEN\s*[=:]\s*)\S+", re.IGNORECASE),
     re.compile(r"(OPENAI_API_KEY\s*[=:]\s*)\S+", re.IGNORECASE),
+    re.compile(r"(DEEPSEEK_API_KEY\s*[=:]\s*)\S+", re.IGNORECASE),
+    re.compile(r"(CANVA_[A-Z0-9_]*\s*[=:]\s*)\S+", re.IGNORECASE),
+    re.compile(r"(code_verifier=)[^&\s\"']+", re.IGNORECASE),
+    re.compile(r"([?&]code=)[^&\s\"']+"),
+    re.compile(r"(X-Amz-Signature=)[^&\s\"']+", re.IGNORECASE),
     re.compile(r"(Authorization['\"]?\s*[:=]\s*['\"]?)[^'\"\s]+", re.IGNORECASE),
     re.compile(r"(token['\"]?\s*[:=]\s*['\"]?)[A-Za-z0-9._\-]{12,}", re.IGNORECASE),
     re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9\-_]{16,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"),
 )
 
 _SECRET_KEYS = frozenset(
     {
         "access_token",
         "meta_access_token",
+        "meta_token",
         "authorization",
         "token",
         "password",
         "secret",
         "client_secret",
         "openai_api_key",
+        "openai_key",
         "api_key",
         "password_hash",
+        "jwt",
+        "jwt_token",
         "jwt_secret",
         "token_encryption_key",
         "default_admin_password",
         "access_token_encrypted",
+        "encrypted_credentials",
+        "credentials",
+        "deepseek_api_key",
+        "deepseek_key",
+        "canva_api_key",
+        "canva_token",
+        "canva_client_secret",
+        "refresh_token",
+        "refresh_token_encrypted",
+        "id_token",
+        "code_verifier",
+        "code_verifier_encrypted",
+        "authorization_code",
     }
 )
+
+_SECRET_KEY_FRAGMENTS = (
+    "api_key",
+    "apikey",
+    "access_token",
+    "password",
+    "secret",
+    "jwt",
+    "credential",
+    "deepseek",
+    "authorization",
+    "openai_key",
+    "meta_token",
+)
+
+
+def is_secret_key(key: str) -> bool:
+    normalized = str(key).lower().replace("-", "_")
+    if normalized in _SECRET_KEYS:
+        return True
+    return any(fragment in normalized for fragment in _SECRET_KEY_FRAGMENTS)
 
 
 def redact_text(value: str) -> str:
@@ -56,7 +100,7 @@ def redact_value(value: Any) -> Any:
         return redact_text(value)
     if isinstance(value, dict):
         return {
-            key: (REDACTED if str(key).lower() in _SECRET_KEYS else redact_value(item))
+            key: (REDACTED if is_secret_key(str(key)) else redact_value(item))
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -87,6 +131,7 @@ class JsonFormatter(logging.Formatter):
         for key in (
             "task_id",
             "request_id",
+            "correlation_id",
             "step",
             "tool",
             "status",
@@ -97,6 +142,8 @@ class JsonFormatter(logging.Formatter):
             "graph_code",
             "graph_subcode",
             "graph_message",
+            "user_id",
+            "tenant_id",
         ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)

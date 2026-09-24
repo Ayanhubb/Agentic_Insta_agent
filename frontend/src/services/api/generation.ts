@@ -1,4 +1,4 @@
-import type { ContentJob, GeneratedImage } from "../../types/api";
+import type { ContentJob, GeneratedImage, GenerationCreateOptions } from "../../types/api";
 import { request, unwrapList, unwrapObject } from "./client";
 import { API } from "./endpoints";
 
@@ -24,10 +24,15 @@ export const generationApi = {
     return asImage(payload);
   },
 
-  async create(prompt: string): Promise<GeneratedImage> {
+  async create(prompt: string, options?: GenerationCreateOptions): Promise<GeneratedImage> {
+    const body: Record<string, string | boolean> = { prompt };
+    if (options?.product_id) body.product_id = options.product_id;
+    if (options?.offer_id) body.offer_id = options.offer_id;
+    if (options?.festival) body.festival = options.festival;
+    if (options?.use_canva) body.use_canva = true;
     const payload = await request<unknown>(API.generation.create, {
       method: "POST",
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify(body),
     });
     return asImage(payload);
   },

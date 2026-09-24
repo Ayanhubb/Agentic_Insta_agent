@@ -45,6 +45,12 @@ frontend/src/
 | `/festivals` | Campaign progress | session |
 | `/business` | Business profile fields | session |
 | `/instagram` | Connection + V1 manual publish + agent timeline | session |
+| `/brand` | Logo, guidelines, colors, festival preferences | session |
+| `/products` | Product metadata, image upload, active offers | session |
+| `/assets` | Owner-scoped brand and product files | session |
+| `/ai-settings` | DeepSeek, OpenAI, and Canva connection status | session |
+| `/mcp` | MCP tool availability | session |
+| `/campaigns` | Festival campaigns and generate handoff | session |
 | `/settings` | Password change and workspace snapshot | session |
 | `/admin` | Users and API health | admin |
 
@@ -92,6 +98,22 @@ Platform / auth:
 - `GET /api/v1/admin/users`
 - `GET /api/v1/settings`
 - `GET /api/v1/tasks/{task_id}/owned`
+
+Additive catalog routes mounted by `api/asset_routes.py` (owner-scoped; a 404 is an empty state):
+
+- `GET|POST /api/v1/brand` — `company_name`, `website`, `instagram_handle`, `brand_colors` (`{ hex }`), `fonts`, `guidelines`, `logo_png_asset_id`, `logo_svg_asset_id`
+- `GET|POST /api/v1/assets` — multipart `file` plus `role` (`logo_png`, `logo_svg`, `product_image`, …) and optional `product_id`
+- `GET /api/v1/assets/{id}/media`
+- `DELETE /api/v1/assets/{id}`
+- `GET|POST /api/v1/products`, `PUT /api/v1/products/{id}` — product `offer` and numeric `price` live on the product
+
+`festival_preferences` is included on brand save as an optional field. The current `BrandWrite` model ignores unknown keys, so that list is kept in the session until the API stores it.
+
+`GET /api/v1/ai/status` and `GET /api/v1/mcp/status` are optional reads. When they are not mounted, DeepSeek and OpenAI show **Not configured**, Canva shows **Not connected**, and MCP shows **Not available**. A mounted status payload should match `Settings.public_ai_status()` (`deepseek_configured`, `openai_configured`, `canva_configured`, `mcp_enabled`) and must not include keys, tokens, or secrets.
+
+`POST /api/v1/generation` still accepts `{ "prompt" }`. The generator may also send optional `product_id` and `festival`; servers that ignore unknown keys keep working.
+
+Responses must not include API keys, Meta access tokens, JWT secrets, encryption keys, Canva tokens, or filesystem paths. The UI renders only whitelisted labels.
 
 HTTP handling:
 

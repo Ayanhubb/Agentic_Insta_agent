@@ -19,6 +19,7 @@ COPY models ./models
 COPY scheduler ./scheduler
 COPY services ./services
 COPY tools ./tools
+COPY backend ./backend
 COPY config.py main.py alembic.ini ./
 
 RUN mkdir -p storage tmp input output data \

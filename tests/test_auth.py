@@ -27,6 +27,8 @@ FORBIDDEN_KEYS = {
     "password_hash",
     "openai_api_key",
     "OPENAI_API_KEY",
+    "deepseek_api_key",
+    "DEEPSEEK_API_KEY",
     "meta_access_token",
     "META_ACCESS_TOKEN",
     "access_token_encrypted",

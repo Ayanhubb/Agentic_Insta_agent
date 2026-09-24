@@ -355,7 +355,7 @@ class InMemoryPublicationStore:
                 if instagram_account_id and post.instagram_account_id != instagram_account_id:
                     continue
                 total += 1
-                published_day = post.published_at.date() if post.published_at else post.scheduled_date
+                published_day = post.scheduled_date or (post.published_at.date() if post.published_at else None)
                 if post.post_type == PostType.DAILY.value and published_day == day:
                     daily += 1
                 if post.post_type == PostType.FESTIVAL.value:

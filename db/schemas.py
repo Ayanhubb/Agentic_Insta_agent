@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from db.enums import (
     DEFAULT_TIMEZONE,
@@ -276,3 +279,163 @@ class AutomationSettingsRead(AutomationSettingsWrite, ORMModel):
     user_id: str
     created_at: datetime
     updated_at: datetime
+
+
+class BrandColorWrite(BaseModel):
+    name: str | None = Field(default=None, max_length=40)
+    hex: str
+
+    @field_validator("hex")
+    @classmethod
+    def _hex(cls, value: str) -> str:
+        text = value.strip()
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", text):
+            raise ValueError("Brand colors must be #RRGGBB.")
+        return text.lower()
+
+
+class FontMetadataWrite(BaseModel):
+    family: str = Field(min_length=1, max_length=80)
+    weight: str | None = Field(default=None, max_length=32)
+    style: str | None = Field(default=None, max_length=32)
+    source: str | None = Field(default=None, max_length=200)
+
+
+class GuidelineWrite(BaseModel):
+    title: str = Field(default="Brand guidelines", max_length=160)
+    body: str = Field(min_length=1, max_length=20000)
+
+
+class BrandWrite(BaseModel):
+    company_name: str = Field(min_length=1, max_length=255)
+    website: str | None = Field(default=None, max_length=500)
+    instagram_handle: str | None = Field(default=None, max_length=31)
+    brand_colors: list[BrandColorWrite] = Field(default_factory=list, max_length=24)
+    fonts: list[FontMetadataWrite] = Field(default_factory=list, max_length=24)
+    logo_png_asset_id: str | None = None
+    logo_svg_asset_id: str | None = None
+    guidelines: str | list[GuidelineWrite] | None = None
+
+    @field_validator("company_name")
+    @classmethod
+    def _company_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Company name is required.")
+        return cleaned
+
+    @field_validator("website")
+    @classmethod
+    def _website(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        parsed = urlparse(cleaned)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("Website must be an http(s) URL.")
+        if parsed.username or parsed.password:
+            raise ValueError("Website must not include credentials.")
+        return cleaned
+
+    @field_validator("instagram_handle")
+    @classmethod
+    def _handle(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip().lstrip("@")
+        if not cleaned:
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9._]{1,30}", cleaned):
+            raise ValueError("Instagram handle is invalid.")
+        return cleaned
+
+
+class ProductWrite(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+    category: str | None = Field(default=None, max_length=128)
+    price: Decimal | None = Field(default=None, ge=0, le=Decimal("9999999999.99"))
+    sku: str | None = Field(default=None, max_length=64)
+    is_active: bool = True
+    offer: str | None = Field(default=None, max_length=500)
+    image_asset_id: str | None = None
+
+    @field_validator("name", "description", "category", "offer", "sku", mode="before")
+    @classmethod
+    def _strip_optional(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Product name is required.")
+        return value
+
+    @field_validator("sku")
+    @classmethod
+    def _sku(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", value):
+            raise ValueError("SKU is invalid.")
+        return value
+
+    @field_validator("description", "category", "offer")
+    @classmethod
+    def _blank_to_none(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        return value
+
+    @field_validator("price")
+    @classmethod
+    def _price(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return None
+        return value.quantize(Decimal("0.01"))
+
+
+class ProductUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+    category: str | None = Field(default=None, max_length=128)
+    price: Decimal | None = Field(default=None, ge=0, le=Decimal("9999999999.99"))
+    sku: str | None = Field(default=None, max_length=64)
+    is_active: bool | None = None
+    offer: str | None = Field(default=None, max_length=500)
+    image_asset_id: str | None = None
+
+    @field_validator("name", "description", "category", "offer", "sku", mode="before")
+    @classmethod
+    def _strip_optional(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("sku")
+    @classmethod
+    def _sku(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", value):
+            raise ValueError("SKU is invalid.")
+        return value
+
+    @field_validator("description", "category", "offer")
+    @classmethod
+    def _blank_to_none(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        return value
+
+    @field_validator("price")
+    @classmethod
+    def _price(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return None
+        return value.quantize(Decimal("0.01"))

@@ -14,5 +14,7 @@ export type { DashboardData, DashboardPayload } from "./dashboard";
 export { businessApi } from "./business";
 export { adminApi } from "./admin";
 export { settingsApi } from "./settings";
+export { brandApi, productsApi, assetMediaUrl } from "./catalog";
+export { providersApi } from "./providers";
 export { getAccessToken, setAccessToken, clearAccessToken } from "./session";
 export { onUnauthorized } from "./client";

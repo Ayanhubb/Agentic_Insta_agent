@@ -14,8 +14,10 @@ from ai.llm_client import LLMProvider
 from config import Settings
 from scheduler.daily_scheduler import DailyScheduler
 from scheduler.festival_scheduler import FestivalScheduler
+from scheduler.integrations import resolve_canva, resolve_festival_mcp, resolve_vision
 from scheduler.policies import FestivalDiversityPolicy
 from services.clock import Clock
+from services.metrics import pipeline_metrics
 from services.publication import PublicationService
 from api.task_store import TaskStore
 from services.instagram_client import InstagramClient
@@ -43,6 +45,9 @@ class AutomationRunner:
         self._clock = clock
         self._instagram_client = instagram_client
         self._publication_gateway = publication_gateway
+        self._vision = resolve_vision(settings)
+        self._festival_mcp = resolve_festival_mcp(settings)
+        self._canva = resolve_canva(settings)
 
     async def tick(self, *, user_id: str | None = None) -> dict[str, Any]:
         session = self._session_factory()
@@ -61,8 +66,28 @@ class AutomationRunner:
                 instagram_client=self._instagram_client,
                 session_factory=self._session_factory,
             )
-            daily = DailyScheduler(self._settings, session, content, publisher, self._clock)
-            festival = FestivalScheduler(self._settings, session, festival_content, publisher, self._clock)
+            daily = DailyScheduler(
+                self._settings,
+                session,
+                content,
+                publisher,
+                self._clock,
+                vision=self._vision,
+                festival_mcp=self._festival_mcp,
+                canva=self._canva,
+                metrics=pipeline_metrics,
+            )
+            festival = FestivalScheduler(
+                self._settings,
+                session,
+                festival_content,
+                publisher,
+                self._clock,
+                vision=self._vision,
+                festival_mcp=self._festival_mcp,
+                canva=self._canva,
+                metrics=pipeline_metrics,
+            )
             if user_id:
                 from db.models import User
                 from db.repositories import AutomationRepository
@@ -91,6 +116,7 @@ async def scheduler_loop(runner: AutomationRunner, interval_seconds: int, stop: 
         try:
             await runner.tick()
         except Exception:
+            pipeline_metrics.increment("scheduler_tick_failed")
             logger.exception("Scheduler tick failed")
         try:
             await asyncio.wait_for(stop.wait(), timeout=max(5, interval_seconds))

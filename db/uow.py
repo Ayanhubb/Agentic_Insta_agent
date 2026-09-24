@@ -8,6 +8,13 @@ from sqlalchemy.orm import Session
 
 from db.crypto import TokenEncryptor
 from db.exceptions import DuplicateRecordError
+from db.asset_repositories import (
+    BrandGuidelineRepository,
+    BrandProfileRepository,
+    BusinessAssetRepository,
+    ProductAssetRepository,
+    ProductRepository,
+)
 from db.repositories import (
     AgentEventRepository,
     AgentTaskRepository,
@@ -47,6 +54,11 @@ class Database:
         self.automation_settings = AutomationSettingsRepository(session)
         self.sessions = SessionRepository(session)
         self.daily_slots = DailySlotRepository(session)
+        self.business_assets = BusinessAssetRepository(session)
+        self.brand_profiles = BrandProfileRepository(session)
+        self.brand_guidelines = BrandGuidelineRepository(session)
+        self.products = ProductRepository(session)
+        self.product_assets = ProductAssetRepository(session)
         # Aliases used by auth / scheduler / platform agents.
         self.business = self.business_profiles
         self.automation = self.automation_settings

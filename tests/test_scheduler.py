@@ -43,11 +43,26 @@ from tests.helpers import DummyInstagramClient, auth_client_headers, test_settin
 
 
 class FakeContent:
-    def __init__(self, session, *, fail: bool = False, auto_approved: bool = True, image_path: str | None = None) -> None:
+    def __init__(
+        self,
+        session,
+        *,
+        fail: bool = False,
+        auto_approved: bool = True,
+        image_path: str | None = None,
+        featured_product: str | None = "sarees",
+        logo_required: bool = False,
+        offer_text: str | None = None,
+        caption_hint: str | None = None,
+    ) -> None:
         self.session = session
         self.fail = fail
         self.auto_approved = auto_approved
         self.image_path = image_path or "generated.jpg"
+        self.featured_product = featured_product
+        self.logo_required = logo_required
+        self.offer_text = offer_text
+        self.caption_hint = caption_hint
         self.calls = 0
 
     async def run(self, request) -> ContentStrategyResult:
@@ -70,6 +85,10 @@ class FakeContent:
             image_prompt="A detailed photo of the shop interior with products",
             business_context="Local retail shop",
             reason="daily_automation",
+            featured_product_or_service=self.featured_product,
+            logo_required=self.logo_required,
+            offer_text=self.offer_text,
+            caption_hint=self.caption_hint,
         )
         return ContentStrategyResult(
             task=ContentTask(
@@ -376,3 +395,166 @@ def test_automation_api_round_trip(tmp_settings: Settings) -> None:
         ran = client.post("/api/v1/automation/run-now", headers=headers)
         assert ran.status_code == 200
         assert "daily" in ran.json()
+
+
+_PUBLISHED_EVENTS = [
+    "MCP_CONTEXT_FETCHED",
+    "CONTENT_PLAN_CREATED",
+    "IMAGE_GENERATION_STARTED",
+    "IMAGE_GENERATED",
+    "IMAGE_QA_STARTED",
+    "IMAGE_QA_PASSED",
+    "APPROVAL_GRANTED",
+    "INSTAGRAM_PUBLISH_STARTED",
+    "INSTAGRAM_PUBLISHED",
+    "INSTAGRAM_VERIFIED",
+]
+
+
+class GateVision:
+    def __init__(self, *, allow: bool = False) -> None:
+        self.allow = allow
+
+    async def review_image(self, **kwargs: object) -> dict[str, object]:
+        return {"passed": self.allow, "reasons": [] if self.allow else ["blurry"]}
+
+
+class MalformedVision:
+    async def review_image(self, **kwargs: object) -> str:
+        return "not-json"
+
+
+class InvalidFestivalMCP:
+    async def get_festival_context(self, **kwargs: object) -> dict[str, object]:
+        return {"valid": False}
+
+
+@pytest.mark.asyncio
+async def test_scheduler_twice_does_not_duplicate_post(harness) -> None:
+    settings, session, user, account, automation, clock, image_path = harness
+    content = FakeContent(session, image_path=str(image_path))
+    publisher = FakePublisher(session)
+    scheduler = DailyScheduler(settings, session, content, publisher, clock)
+    first = await scheduler.run_user(user, automation, force=True)
+    second = await scheduler.run_user(user, automation, force=True)
+    published = [row for row in session.query(InstagramPost).all() if row.status == "PUBLISHED"]
+    assert first["status"] == "PUBLISHED"
+    assert first["verified"] == "True"
+    assert first["correlation_id"]
+    assert first["request_id"]
+    assert second["status"] == "skipped"
+    assert second["reason"] == "already_published"
+    assert publisher.calls == 1
+    assert len(published) == 1
+    assert len(scheduler.outcomes) == 1
+    assert scheduler.outcomes[0].event_names == _PUBLISHED_EVENTS
+    from db.models import AgentEvent
+
+    rows = session.query(AgentEvent).filter_by(task_id=first["task_id"]).all()
+    ordered = sorted(rows, key=lambda row: (row.observation or {}).get("sequence", 0))
+    assert [row.tool for row in ordered] == _PUBLISHED_EVENTS
+    assert all(row.observation["correlation_id"] == first["correlation_id"] for row in ordered)
+    assert all(row.observation["request_id"] == first["request_id"] for row in ordered)
+
+
+@pytest.mark.asyncio
+async def test_human_mode_stays_pending_approval(harness) -> None:
+    settings, session, user, account, automation, clock, image_path = harness
+    automation.auto_daily_publish = False
+    publisher = FakePublisher(session)
+    scheduler = DailyScheduler(settings, session, FakeContent(session, image_path=str(image_path)), publisher, clock)
+    result = await scheduler.run_user(user, automation, force=True)
+    assert result["status"] == "generated_pending_approval"
+    assert result["reason"] == "human_approval_required"
+    assert publisher.calls == 0
+    assert "APPROVAL_GRANTED" not in scheduler.outcomes[0].event_names
+    assert "INSTAGRAM_PUBLISH_STARTED" not in scheduler.outcomes[0].event_names
+    image = session.get(GeneratedImage, scheduler.outcomes[0].image_id)
+    assert image is not None
+    assert image.approval_status == "PENDING_APPROVAL"
+
+
+@pytest.mark.asyncio
+async def test_failed_qa_never_auto_approves(harness) -> None:
+    settings, session, user, account, automation, clock, image_path = harness
+    publisher = FakePublisher(session)
+    scheduler = DailyScheduler(
+        settings,
+        session,
+        FakeContent(session, image_path=str(image_path)),
+        publisher,
+        clock,
+        vision=GateVision(allow=False),
+    )
+    result = await scheduler.run_user(user, automation, force=True)
+    assert result["status"] == "failed"
+    assert result["reason"] == "image_qa_failed"
+    assert publisher.calls == 0
+    assert "IMAGE_QA_FAILED" in scheduler.outcomes[0].event_names
+    assert "APPROVAL_GRANTED" not in scheduler.outcomes[0].event_names
+    image = session.get(GeneratedImage, scheduler.outcomes[0].image_id)
+    assert image is not None
+    assert image.approval_status == "PENDING_APPROVAL"
+
+
+@pytest.mark.asyncio
+async def test_festival_qa_failure_retries_without_duplicate_publish(harness) -> None:
+    settings, session, user, account, automation, clock, image_path = harness
+    clock.set(datetime(2026, 11, 8, 4, 30, tzinfo=timezone.utc))
+    vision = GateVision(allow=False)
+    blocked = FestivalScheduler(
+        settings,
+        session,
+        FakeContent(session, image_path=str(image_path)),
+        FakePublisher(session),
+        clock,
+        vision=vision,
+    )
+    blocked_results = await blocked.run_user(user, automation, force=True)
+    campaign = session.query(FestivalCampaign).filter_by(festival_name="Diwali", user_id=user.id).one()
+    assert any(item.get("reason") == "image_qa_failed" for item in blocked_results)
+    assert campaign.published_posts == 0
+    assert campaign.remaining_posts == 2
+    assert all("INSTAGRAM_PUBLISH_STARTED" not in item.event_names for item in blocked.outcomes)
+
+    vision.allow = True
+    failed_publisher = FakePublisher(session, "FAILED")
+    failed = FestivalScheduler(
+        settings,
+        session,
+        FakeContent(session, image_path=str(image_path)),
+        failed_publisher,
+        clock,
+        vision=vision,
+    )
+    failed_results = await failed.run_user(user, automation, force=True)
+    session.refresh(campaign)
+    assert any(item.get("status") == "FAILED" for item in failed_results)
+    assert campaign.published_posts == 0
+    assert campaign.required_posts == 2
+    assert failed_publisher.calls >= 1
+
+    published = FakePublisher(session)
+    retry = FestivalScheduler(
+        settings,
+        session,
+        FakeContent(session, image_path=str(image_path)),
+        published,
+        clock,
+        vision=vision,
+    )
+    await retry.run_user(user, automation, force=True)
+    session.refresh(campaign)
+    assert campaign.published_posts == 1
+    assert campaign.remaining_posts == 1
+    calls_after_success = published.calls
+    await retry.run_user(user, automation, force=True)
+    session.refresh(campaign)
+    assert campaign.published_posts == 1
+    assert published.calls == calls_after_success
+    verified = [item for item in retry.outcomes if "INSTAGRAM_VERIFIED" in item.event_names]
+    assert verified
+    assert verified[0].event_names == _PUBLISHED_EVENTS
+    assert verified[0].correlation_id
+    assert verified[0].request_id
+

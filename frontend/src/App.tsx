@@ -1,16 +1,22 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminPage } from "./pages/AdminPage";
+import { AiSettingsPage } from "./pages/AiSettingsPage";
+import { AssetsPage } from "./pages/AssetsPage";
 import { AutomationPage } from "./pages/AutomationPage";
+import { BrandPage } from "./pages/BrandPage";
 import { BusinessPage } from "./pages/BusinessPage";
+import { CampaignsPage } from "./pages/CampaignsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FestivalsPage } from "./pages/FestivalsPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { InstagramPage } from "./pages/InstagramPage";
 import { LoginPage } from "./pages/LoginPage";
+import { McpPage } from "./pages/McpPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PostsPage } from "./pages/PostsPage";
+import { ProductsPage } from "./pages/ProductsPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -77,6 +83,54 @@ export default function App() {
         element={
           <ProtectedRoute>
             <BusinessPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/brand"
+        element={
+          <ProtectedRoute>
+            <BrandPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/products"
+        element={
+          <ProtectedRoute>
+            <ProductsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assets"
+        element={
+          <ProtectedRoute>
+            <AssetsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-settings"
+        element={
+          <ProtectedRoute>
+            <AiSettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mcp"
+        element={
+          <ProtectedRoute>
+            <McpPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/campaigns"
+        element={
+          <ProtectedRoute>
+            <CampaignsPage />
           </ProtectedRoute>
         }
       />

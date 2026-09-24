@@ -51,4 +51,16 @@ export const API = {
   },
   business: "/api/v1/business",
   adminUsers: "/api/v1/admin/users",
+  brand: "/api/v1/brand",
+  assets: {
+    list: "/api/v1/assets",
+    one: (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`,
+    media: (id: string) => `/api/v1/assets/${encodeURIComponent(id)}/media`,
+  },
+  products: {
+    list: "/api/v1/products",
+    one: (id: string) => `/api/v1/products/${encodeURIComponent(id)}`,
+  },
+  aiStatus: "/api/v1/ai/status",
+  mcpStatus: "/api/v1/mcp/status",
 } as const;
