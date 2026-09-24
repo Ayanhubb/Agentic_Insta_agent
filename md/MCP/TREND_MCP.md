@@ -8,6 +8,8 @@ These tools read stored rows. They do not browse, do not call DeepSeek, and cann
 
 Authentication is the trusted tenant on `MCPClient.invoke`. The model cannot pass `user_id`.
 
+Instagram account intelligence is not served by this module. The live account tools (`get_account_summary`, `get_recent_media`, `get_account_insights`, `get_top_content`, `get_content_performance`) are on server `account`. `TrendIntelligence` in `backend/trends/packet.py` reads both servers, normalizes `trend_context`, and only then calls DeepSeek. That call is read-only. Publishing stays on the Instagram Agent.
+
 Shared filter object `_FILTERS` (all optional unless noted): `limit` integer 1–25, `date_range` string, `industry`, `region`, `festival`, `content_type`.
 
 ## Tools
@@ -68,4 +70,4 @@ Data: aggregates of this tenant's `instagram_posts`. A content type with zero ve
 
 ## Tests
 
-`tests/test_trend_mcp.py`.
+`tests/test_trend_mcp.py`, `tests/test_instagram_mcp_deepseek.py`.

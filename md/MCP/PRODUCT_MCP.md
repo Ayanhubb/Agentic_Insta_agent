@@ -1,5 +1,7 @@
 # Product MCP
 
+No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+
 Related: [Products](../CONTENT/PRODUCTS.md), [MCP architecture](MCP_ARCHITECTURE.md), [Image generation](../AI/IMAGE_GENERATION.md).
 
 Server string: `product`. Module: `backend/mcp/servers/product.py`.
@@ -30,7 +32,9 @@ Data: `products`, `product_assets`, `business_assets`. Fallback: `generated_imag
 
 Errors: `MALFORMED_ARGUMENTS`, `ASSET_ACCESS_DENIED`.
 
-The tool returns asset metadata and ids. Passing those ids into OpenAI as pixels happens later in `services/image_reference.py`, only when the file exists for this user. See [Image generation](../AI/IMAGE_GENERATION.md).
+The tool returns asset metadata and ids for this tenant only. A `product_id` or `image_id` owned by someone else raises `ASSET_ACCESS_DENIED`. It does not return the other tenant's file.
+
+Those ids are not pixels. `resolve_product_asset` / `resolve_product_assets` (`services/asset_resolution.py`) classify the file as `AVAILABLE`, `MISSING`, `INVALID`, `UNAUTHORIZED`, or `DELETED`, and only `AVAILABLE` bytes are passed into the OpenAI edit call. See [Image generation](../AI/IMAGE_GENERATION.md).
 
 ## `get_active_offers`
 

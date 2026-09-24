@@ -59,7 +59,7 @@ export function InstagramPage() {
   if (error) return <ErrorState message={error} />;
   if (!status) return <LoadingState label="Loading Instagram status…" />;
 
-  const readyToPost = Boolean(status.connected || status.environment_configured);
+  const readyToPost = Boolean(status.connected);
   const canSubmit = Boolean(file && caption.trim() && !busy);
 
   function chooseFile(next: File | null) {
@@ -219,7 +219,7 @@ export function InstagramPage() {
           </Field>
 
           {!readyToPost ? (
-            <p className="error-box">Connect Instagram or set studio credentials before posting.</p>
+            <p className="error-box">Connect your Instagram professional account before posting.</p>
           ) : null}
 
           <Button type="button" disabled={!canSubmit || !readyToPost} onClick={() => setConfirmPost(true)}>
@@ -233,17 +233,11 @@ export function InstagramPage() {
             <StatusBadge
               value={readyToPost ? "connected" : status.status || "disconnected"}
             />{" "}
-            {status.connected
-              ? status.username || status.instagram_account_id || "Connected"
-              : status.environment_configured
-                ? "Studio credentials on the server"
-                : "Not connected"}
+            {status.connected ? status.username || status.instagram_account_id || "Connected" : "Not connected"}
           </p>
           <p className="faint">
-            Access tokens stay encrypted on the backend. They never appear in this app.
-            {status.environment_configured && !status.connected
-              ? " You can post with the studio Instagram credentials already configured on the server."
-              : ""}
+            Access tokens stay encrypted on the backend. They never appear in this app. Posting uses only
+            this account.
           </p>
           <details className="connect-details">
             <summary>Connect a different account</summary>

@@ -10,7 +10,7 @@ Related: [Security](SECURITY.md). No secret values belong in this file.
 | `DEEPSEEK_API_KEY` | yes | no | no |
 | `JWT_SECRET` (`SECRET_KEY` alias) | yes | no | no. Signs tokens |
 | `TOKEN_ENCRYPTION_KEY` (`ACCOUNT_TOKEN_FERNET_KEY` alias) | yes | no | no |
-| `META_ACCESS_TOKEN` (`INSTAGRAM_ACCESS_TOKEN` alias) | yes | no. Per-user tokens are encrypted columns | no |
+| `META_ACCESS_TOKEN` (`INSTAGRAM_ACCESS_TOKEN` alias) | yes, development-only. Production publishing ignores it. Also set `INSTAGRAM_ACCOUNT_ID`. Requires `APP_ENV=development` (or `dev` / `local`) and `INSTAGRAM_LEGACY_ENV_FALLBACK=true` | no. Per-user tokens are encrypted columns and are the production credential | no |
 | `CANVA_CLIENT_SECRET` | yes | no | no |
 | Canva user tokens | no | `canva_connections`, encrypted | no |
 | Instagram user token | posted once to connect | `instagram_accounts.access_token_encrypted` | stripped from responses |

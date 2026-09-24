@@ -24,4 +24,11 @@ Daily and festival ticks call `ContentAgent`, then `CampaignPipeline`: content �
 
 ## Canva during generation
 
-Canva runs only when the request sets `use_canva` or the prompt asks for it, and a client exists. `DisabledCanva` returns action `none`. See [Canva](../MCP/CANVA_MCP.md).
+Canva is queried only when the request sets `use_canva` or the prompt asks for it.
+
+The creative plan then chooses the renderer:
+
+- `canva_action: none` — OpenAI generates the image.
+- `apply_template` or `use_reference` — Canva creates and exports a design from the connected account's own templates and assets.
+
+That export uses the same QA and approval path as an OpenAI image. `published` stays false. If Canva was requested and the user has not connected it, the response is `CANVA_NOT_CONNECTED` and no image is generated. A missing Canva connection does not block startup or generations that did not ask for Canva. See [Canva](../MCP/CANVA_MCP.md).

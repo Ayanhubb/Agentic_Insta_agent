@@ -60,6 +60,7 @@ class AutomationRunner:
                 session=session,
                 settings=self._settings,
                 mcp=mcp,
+                canva=self._canva,
             )
             festival_content = ContentAgent(
                 self._llm,
@@ -67,6 +68,7 @@ class AutomationRunner:
                 session=session,
                 settings=self._settings,
                 mcp=mcp,
+                canva=self._canva,
                 diversity=FestivalDiversityPolicy(),
             )
             publisher = self._publication_gateway or PublicationService(
@@ -109,6 +111,7 @@ class AutomationRunner:
                 vision=self._vision,
                 festival_mcp=self._festival_mcp,
                 canva=self._canva,
+                llm=self._llm,
             )
             if user_id:
                 from db.models import User

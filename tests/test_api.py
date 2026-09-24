@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from config import Settings
-from tests.helpers import DummyInstagramClient, auth_client_headers, write_jpeg
+from tests.helpers import DummyInstagramClient, auth_client_headers, connect_instagram, write_jpeg
 
 
 def test_publish_endpoint_forwards_caption(tmp_settings: Settings, tmp_path: Path) -> None:
@@ -13,6 +13,7 @@ def test_publish_endpoint_forwards_caption(tmp_settings: Settings, tmp_path: Pat
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers = auth_client_headers(client)
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             response = client.post(
                 "/api/v1/instagram/publish?wait=true",
@@ -46,6 +47,7 @@ def test_publish_endpoint_success(tmp_settings: Settings, tmp_path: Path) -> Non
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers = auth_client_headers(client)
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             response = client.post(
                 "/api/v1/instagram/publish?wait=true",
@@ -104,6 +106,7 @@ def test_task_status_endpoint(tmp_settings: Settings, tmp_path: Path) -> None:
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers = auth_client_headers(client)
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             started = client.post(
                 "/api/v1/instagram/publish?wait=true",

@@ -111,7 +111,7 @@ class InstagramMediaService:
         if not self.configured:
             raise AppError(
                 ErrorCode.CONFIGURATION_ERROR,
-                "Instagram publishing is not configured. Set META_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID.",
+                "Instagram publishing is not configured for this account.",
                 http_status=503,
             )
 

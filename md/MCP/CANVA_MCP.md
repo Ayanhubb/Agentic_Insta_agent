@@ -23,7 +23,9 @@ App routes (`api/canva_routes.py`, prefix `/api/v1/integrations/canva`):
 
 Tokens are Fernet-encrypted in `canva_connections`. PKCE verifiers sit in `canva_oauth_states`. `TOKEN_ENCRYPTION_KEY` is required before a user can connect.
 
-`create_app` passes a Canva client into generation only when `canva_enabled` is true. Otherwise the orchestrator uses `DisabledCanva`, which returns `action: none`.
+`create_app` passes a Canva client into generation only when `canva_enabled` is true. Startup does not open a Canva session. Otherwise the orchestrator uses `DisabledCanva`.
+
+When a request asks for Canva and the account is not connected, the workflow returns `CANVA_NOT_CONNECTED` and does not generate an image. An expired token returns `CANVA_AUTHORIZATION_FAILED`. Neither path publishes, and neither path is a process crash.
 
 ## Remote tool names
 
@@ -35,17 +37,28 @@ Mapped capabilities: `create_design`, `edit_design`, `search_designs`, `get_bran
 
 There is no publish capability in that map.
 
-## What the adapter will not do
+## Content workflow
 
-`CanvaAdapter.apply` returns `applied: false` with reason `explicit_capability_required` (or `disabled`). It does not invent a tool call and it does not call Meta.
+The creative plan chooses the renderer.
 
-Design generation, editing, and export exist only as discovered remote tools behind a connected account. If Canva is disabled or the user has not completed OAuth, those actions are not performed.
+| `canva_action` | Renderer |
+| --- | --- |
+| `none` | OpenAI image generation |
+| `apply_template` or `use_reference` | `CanvaAdapter.produce` on this user's connection |
+
+`produce` lists only that account's templates and assets, creates a design from the approved brief, and exports a PNG. The bytes then use the same vision QA and `PENDING_APPROVAL` path as an OpenAI image. Canva does not receive Meta permissions and does not call `media_publish`.
+
+There is no logo upload. If the connected account has no brand template or asset yet, the plan stays on `none` and OpenAI generates the image. Later uploads are picked up by the same asset lookup.
+
+`CanvaAdapter.apply` is only the scheduler observation hook. It returns `applied: false`. It does not create a second design and it does not call Meta.
+
+The access token stays inside the adapter session. `query` and `produce` results do not include it, and the export download does not send it.
 
 | Action | Status when Canva is off or disconnected |
 | --- | --- |
-| Instagram publish from Canva | NOT IMPLEMENTED (no such tool) |
-| Automatic design apply during generation | Not applied. `applied: false` |
-| Template fill without a connected account | NOT IMPLEMENTED |
+| Instagram publish from Canva | Not available. Publish tool names are refused |
+| Design export during generation | `CANVA_NOT_CONNECTED` or `CANVA_DISABLED` |
+| Template fill without a connected account | Not performed |
 
 ## Environment
 
@@ -55,4 +68,4 @@ Do not put these values in the React app.
 
 ## Tests
 
-`tests/test_canva_mcp.py` uses a mocked remote client.
+`tests/test_canva_mcp.py` and `tests/test_canva_execution.py` use a mocked remote client. They cover a connected account, a missing connection, an invalid token, template lookup, asset retrieval, design export, tenant isolation, QA, approval, and the refusal to publish.

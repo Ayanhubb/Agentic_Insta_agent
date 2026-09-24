@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from api.app import create_app
 from config import Settings
 from services.clock import FrozenClock
-from tests.helpers import DummyInstagramClient, auth_client_headers, write_jpeg
+from tests.helpers import DummyInstagramClient, auth_client_headers, connect_instagram, write_jpeg
 
 
 def _app(tmp_settings: Settings, clock: FrozenClock | None = None):
@@ -207,6 +207,7 @@ def test_v1_publish_still_works(tmp_settings: Settings, tmp_path) -> None:
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers = auth_client_headers(client)
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             response = client.post(
                 "/api/v1/instagram/publish?wait=true",

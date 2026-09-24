@@ -12,6 +12,20 @@ Related: [Instagram agent](../AGENTS/INSTAGRAM_AGENT.md), [Instagram intelligenc
 | POST | `/api/v1/instagram/disconnect` | Remove the connection |
 | POST | `/api/v1/generation/{image_id}/approve` | Publish a generated still |
 
+## Credentials
+
+Authenticated publishing uses the signed-in user's row in `instagram_accounts`. The access token is Fernet-encrypted (`access_token_encrypted`). The Instagram Agent receives a copy of that token only for the Graph call. Responses, MCP tools, DeepSeek, OpenAI, React, and logs do not receive it.
+
+`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are not a production fallback. If the user has no connected account, publish, approve, and the scheduler return `INSTAGRAM_NOT_CONNECTED` (HTTP 409). An expired token returns `AUTHENTICATION_ERROR`. A connected row with an empty token returns `AUTHENTICATION_ERROR` ("missing"). A request that names another user's Instagram account id returns `PERMISSION_ERROR`.
+
+Those two environment variables remain only as an explicit single-account development path:
+
+- `APP_ENV` must be `development`, `dev`, or `local` (unset, `production`, and `staging` refuse the path)
+- `INSTAGRAM_LEGACY_ENV_FALLBACK` must be true
+- the caller must opt in (`allow_environment_fallback`)
+
+The scheduler and automatic publishing do not opt in. They publish only with that business's connected account and fail when none is connected. `GET /api/v1/instagram/status` reports `environment_configured: false` and does not treat a process token as the user's connection.
+
 ## Graph publishing
 
 Implemented in `tools/instagram_media.py`. Base URL is `META_GRAPH_API_BASE_URL` plus `META_API_VERSION` (default `https://graph.facebook.com/v26.0`). Hosts are limited to `graph.facebook.com` and `graph.instagram.com`.

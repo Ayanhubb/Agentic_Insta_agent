@@ -18,6 +18,8 @@ JWT HS256 (`auth/tokens.py`), cookie `access_token` or Bearer, server-side `sess
 
 MCP, DeepSeek, OpenAI, and Canva cannot call `media_publish`. The allowlist check runs before any handler. The Instagram Agent is the only registered publisher. See [Architecture](../ARCHITECTURE.md).
 
+Canva access and refresh tokens stay in the encrypted `canva_connections` row and in the adapter's MCP session. They are not sent to DeepSeek, OpenAI, the React app, MCP tool results, or log lines. A Canva export download does not attach the access token. Canva tool names that contain `publish` or `instagram` are refused before the remote call.
+
 ## HTTP
 
 CORS origins come from `CORS_ORIGINS` and allow credentials. Graph hosts are allowlisted. `allow_insecure_graph_http` defaults to false.
@@ -28,7 +30,7 @@ Public media URLs are unauthenticated by design. They are not a directory listin
 
 | Item | Status |
 | --- | --- |
-| Global `META_ACCESS_TOKEN` fallback | PARTIAL. One process token can publish when a user has no connected account |
+| Global `META_ACCESS_TOKEN` fallback | Closed for production. Publishing uses the user's encrypted token. The process token is used only when `APP_ENV` is development and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. Scheduler and automatic publishing never use it |
 | `JWT_SECRET` default `dev-change-me` when unset | PARTIAL. Replace before any shared deployment |
 | Cookie `Secure` default false | Expected for local HTTP. Set `JWT_COOKIE_SECURE=true` behind HTTPS |
 | Instagram OAuth | NOT IMPLEMENTED. The user pastes a token |

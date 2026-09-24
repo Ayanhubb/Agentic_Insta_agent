@@ -20,6 +20,7 @@ from agent.agent import InstagramAgent
 from api.task_store import TaskStore
 from config import Settings
 from db.crypto import decrypt_token, encrypt_token
+from db.exceptions import TokenEncryptionError
 from models.errors import AppError, ErrorCode, OperationCertainty
 from models.state import AgentState, TaskStatus, utcnow
 from services.instagram_client import InstagramClient, InstagramGraphClient
@@ -133,6 +134,70 @@ def map_agent_outcome(state: AgentState) -> str:
 
 def is_account_connected(status: str | None, token: str | None) -> bool:
     return (status or "").upper() == AccountStatus.CONNECTED.value and bool(token)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _token_expired(expires_at: datetime | None) -> bool:
+    if expires_at is None:
+        return False
+    return _as_utc(expires_at) <= datetime.now(timezone.utc)
+
+
+def publication_block(account: Any) -> tuple[ErrorCode, str] | None:
+    """Why this owned account cannot publish. None means it can.
+
+    A missing row and a disconnected row are `INSTAGRAM_NOT_CONNECTED`.
+    An expired or empty token is `AUTHENTICATION_ERROR`. This never inspects
+    process-level Meta credentials.
+    """
+    if account is None:
+        return (
+            ErrorCode.INSTAGRAM_NOT_CONNECTED,
+            "Connect an Instagram professional account before publishing.",
+        )
+    status = str(getattr(account, "status", "") or "").upper()
+    token = str(getattr(account, "access_token_encrypted", "") or "").strip()
+    expires_at = getattr(account, "token_expires_at", None)
+    if status in {"", AccountStatus.DISCONNECTED.value}:
+        return (
+            ErrorCode.INSTAGRAM_NOT_CONNECTED,
+            "Connect an Instagram professional account before publishing.",
+        )
+    if status == AccountStatus.EXPIRED.value or _token_expired(expires_at):
+        return (ErrorCode.AUTHENTICATION_ERROR, "Instagram access token is expired.")
+    if status != AccountStatus.CONNECTED.value:
+        return (
+            ErrorCode.INSTAGRAM_NOT_CONNECTED,
+            "Connect an Instagram professional account before publishing.",
+        )
+    if not token:
+        return (ErrorCode.AUTHENTICATION_ERROR, "Instagram access token is missing.")
+    return None
+
+
+def _select_owned_account(
+    accounts: list[InstagramAccountRecord],
+    requested_instagram_id: str | None,
+) -> InstagramAccountRecord | None:
+    rows = list(accounts)
+    requested = (requested_instagram_id or "").strip()
+    if requested:
+        rows = [row for row in rows if row.instagram_account_id == requested]
+        if not rows:
+            return None
+    rank = {
+        AccountStatus.CONNECTED.value: 0,
+        AccountStatus.EXPIRED.value: 1,
+        AccountStatus.ERROR.value: 2,
+        AccountStatus.DISCONNECTED.value: 3,
+    }
+    rows.sort(key=lambda row: rank.get((row.status or "").upper(), 9))
+    return rows[0] if rows else None
 
 
 class PublicationGateway:
@@ -252,29 +317,29 @@ class PublicationGateway:
 
     async def account_status(self, user_id: str | None) -> dict[str, Any]:
         if not user_id:
-            connected = self._settings.credentials_configured
             return strip_secrets(
                 {
-                    "connected": connected,
-                    "source": "environment" if connected else "none",
-                    "environment_configured": connected,
-                    "instagram_account_id": self._settings.instagram_account_id or None if connected else None,
-                    "status": AccountStatus.CONNECTED.value if connected else AccountStatus.DISCONNECTED.value,
+                    "connected": False,
+                    "source": "none",
+                    "environment_configured": False,
+                    "instagram_account_id": None,
+                    "status": AccountStatus.DISCONNECTED.value,
                     "stats": PublicationStats().model_dump(),
                 }
             )
-        account = await self.store.get_account(user_id)
+        owned = await self._owned_accounts(user_id)
+        account = _select_owned_account(owned, None)
         stats = await self.store.stats_for(user_id)
-        connected = bool(
-            account
-            and is_account_connected(account.status, account.access_token_encrypted)
-        )
+        connected = publication_block(account) is None
+        status = account.status if account else AccountStatus.DISCONNECTED.value
+        if account is not None and _token_expired(account.token_expires_at):
+            status = AccountStatus.EXPIRED.value
         payload = {
             "connected": connected,
-            "source": "user" if connected else ("environment" if self._settings.credentials_configured else "none"),
-            "environment_configured": self._settings.credentials_configured,
+            "source": "user" if connected else "none",
+            "environment_configured": False,
             "instagram_account_id": account.instagram_account_id if account else None,
-            "status": account.status if account else AccountStatus.DISCONNECTED.value,
+            "status": status,
             "connected_at": account.connected_at.isoformat() if account else None,
             "stats": stats.model_dump(),
         }
@@ -287,37 +352,66 @@ class PublicationGateway:
         allow_environment_fallback: bool = False,
         instagram_account_id: str | None = None,
     ) -> tuple[str, str, str | None]:
-        account = await self.store.get_account(user_id)
-        if account and is_account_connected(account.status, account.access_token_encrypted):
-            token = decrypt_token(self._settings, account.access_token_encrypted)
-            account_id = instagram_account_id or account.instagram_account_id
-            return token, account_id, account.id
-        db_account = self._db_get_account(user_id)
-        if db_account is not None:
-            token = decrypt_token(self._settings, db_account.access_token_encrypted)
-            account_id = instagram_account_id or db_account.instagram_account_id
-            mirrored = InstagramAccountRecord(
-                id=db_account.id,
-                user_id=user_id,
-                instagram_account_id=db_account.instagram_account_id,
-                access_token_encrypted=db_account.access_token_encrypted,
-                token_expires_at=db_account.token_expires_at,
-                status=AccountStatus.CONNECTED.value,
-                connected_at=db_account.connected_at,
+        """Return this user's decrypted token and Instagram account id.
+
+        Process `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` are not used unless
+        the caller opts in and `Settings.legacy_environment_credentials_allowed()`
+        is true. Production never allows that. A requested account id that is
+        not owned by `user_id` is rejected.
+        """
+        requested = (instagram_account_id or "").strip() or None
+        owned = await self._owned_accounts(user_id)
+        selected = _select_owned_account(owned, requested)
+        if selected is None:
+            if requested and owned:
+                raise AppError(
+                    ErrorCode.PERMISSION_ERROR,
+                    "You can only publish to your connected Instagram account.",
+                    http_status=403,
+                )
+            if allow_environment_fallback and self._settings.legacy_environment_credentials_allowed():
+                env_id = self._settings.instagram_account_id.strip()
+                if requested and requested != env_id:
+                    raise AppError(
+                        ErrorCode.PERMISSION_ERROR,
+                        "You can only publish to your connected Instagram account.",
+                        http_status=403,
+                    )
+                log_step(
+                    logger,
+                    event="INSTAGRAM_LEGACY_ENVIRONMENT_CREDENTIALS",
+                    task_id=user_id,
+                    status="development",
+                    step="credentials",
+                )
+                return self._settings.meta_access_token, env_id, None
+            raise AppError(
+                ErrorCode.INSTAGRAM_NOT_CONNECTED,
+                "Connect an Instagram professional account before publishing.",
+                http_status=409,
             )
-            await self.store.upsert_account(mirrored)
-            return token, account_id, db_account.id
-        if allow_environment_fallback and self._settings.credentials_configured:
-            return (
-                self._settings.meta_access_token,
-                instagram_account_id or self._settings.instagram_account_id,
-                None,
+        if selected.user_id != user_id:
+            raise AppError(
+                ErrorCode.PERMISSION_ERROR,
+                "You can only publish to your connected Instagram account.",
+                http_status=403,
             )
-        raise AppError(
-            ErrorCode.INSTAGRAM_NOT_CONNECTED,
-            "Connect an Instagram professional account before publishing.",
-            http_status=409,
-        )
+        await self._raise_if_unusable(selected)
+        try:
+            token = decrypt_token(self._settings, selected.access_token_encrypted)
+        except TokenEncryptionError as exc:
+            raise AppError(
+                ErrorCode.AUTHENTICATION_ERROR,
+                "Instagram access token could not be used.",
+                http_status=401,
+            ) from exc
+        if requested and requested != selected.instagram_account_id:
+            raise AppError(
+                ErrorCode.PERMISSION_ERROR,
+                "You can only publish to your connected Instagram account.",
+                http_status=403,
+            )
+        return token, selected.instagram_account_id, selected.id
 
     async def enqueue_publication(self, request: InstagramPublicationRequest) -> AgentState:
         source = request.source
@@ -406,6 +500,13 @@ class PublicationGateway:
         generated_id = getattr(image, "id", None)
         ig_account_id = None
         if account is not None:
+            owner = getattr(account, "user_id", None)
+            if owner is not None and owner != user_id:
+                raise AppError(
+                    ErrorCode.PERMISSION_ERROR,
+                    "You can only publish to your connected Instagram account.",
+                    http_status=403,
+                )
             ig_account_id = getattr(account, "instagram_account_id", None)
         state = await self.enqueue_publication(
             InstagramPublicationRequest(
@@ -421,7 +522,6 @@ class PublicationGateway:
                 caption=caption,
                 wait=wait,
                 request_id=request_id,
-                allow_environment_fallback=True,
             )
         )
         if not state.db_post_id:
@@ -641,16 +741,74 @@ class PublicationGateway:
         finally:
             self._release_session(session, owned)
 
-    def _db_get_account(self, user_id: str) -> Any | None:
+    async def _owned_accounts(self, user_id: str) -> list[InstagramAccountRecord]:
+        found: list[InstagramAccountRecord] = []
+        memory = await self.store.get_account(user_id)
+        if memory is not None and memory.user_id == user_id:
+            found.append(memory)
+        for row in self._db_list_accounts(user_id):
+            if any(item.instagram_account_id == row.instagram_account_id for item in found):
+                continue
+            found.append(row)
+        return found
+
+    async def _raise_if_unusable(self, account: InstagramAccountRecord) -> None:
+        block = publication_block(account)
+        if block is None:
+            return
+        code, message = block
+        if code == ErrorCode.AUTHENTICATION_ERROR and "expired" in message:
+            account.status = AccountStatus.EXPIRED.value
+            await self.store.upsert_account(account)
+            self._db_mark_expired(account.user_id, account.id)
+        http_status = 401 if code == ErrorCode.AUTHENTICATION_ERROR else 409
+        raise AppError(code, message, http_status=http_status)
+
+    def _db_mark_expired(self, user_id: str, account_id: str) -> None:
         session, owned = self._session()
         if session is None:
-            return None
+            return
+        try:
+            from db.models import InstagramAccount
+
+            row = session.get(InstagramAccount, account_id)
+            if row is not None and row.user_id == user_id:
+                row.status = AccountStatus.EXPIRED.value
+                if owned:
+                    session.commit()
+                else:
+                    session.flush()
+        except Exception:
+            if owned:
+                session.rollback()
+        finally:
+            self._release_session(session, owned)
+
+    def _db_list_accounts(self, user_id: str) -> list[InstagramAccountRecord]:
+        session, owned = self._session()
+        if session is None:
+            return []
         try:
             from db.repositories import InstagramAccountRepository
 
-            return InstagramAccountRepository(session).get_primary(user_id)
+            copied: list[InstagramAccountRecord] = []
+            for row in InstagramAccountRepository(session).list_for_user(user_id):
+                if row.user_id != user_id:
+                    continue
+                copied.append(
+                    InstagramAccountRecord(
+                        id=row.id,
+                        user_id=row.user_id,
+                        instagram_account_id=row.instagram_account_id,
+                        access_token_encrypted=row.access_token_encrypted,
+                        token_expires_at=row.token_expires_at,
+                        status=row.status,
+                        connected_at=row.connected_at,
+                    )
+                )
+            return copied
         except Exception:
-            return None
+            return []
         finally:
             self._release_session(session, owned)
 

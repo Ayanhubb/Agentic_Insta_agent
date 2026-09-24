@@ -67,6 +67,7 @@ class TrendIntelligenceScheduler:
         meta: Any | None = None,
         research: Any | None = None,
         analyzer: Any | None = None,
+        llm: Any | None = None,
         content_agent: Any | None = None,
         publisher: Any | None = None,
         vision: Any | None = None,
@@ -78,7 +79,8 @@ class TrendIntelligenceScheduler:
         self._clock = clock
         self._meta = meta
         self._research = research if research is not None else _load_optional(_RESEARCH)
-        self._analyzer = _resolve_analyzer(analyzer, settings)
+        self._llm = llm
+        self._analyzer = _resolve_analyzer(analyzer, settings, llm=llm)
         self._content = content_agent
         self._publisher = publisher
         self._vision = vision
@@ -903,12 +905,18 @@ def _confidence_label(value: Any) -> str | None:
     return None
 
 
-def _resolve_analyzer(analyzer: Any | None, settings: Settings) -> Any | None:
+def _resolve_analyzer(analyzer: Any | None, settings: Settings, *, llm: Any | None = None) -> Any | None:
     if analyzer is not None:
         return analyzer
     loaded = _load_optional(_ANALYZER)
     if loaded is not None:
         return loaded
+    from ai.llm_client import reasoning_provider_name
+
+    if reasoning_provider_name(settings) != "deepseek":
+        return None
+    if llm is not None and hasattr(llm, "generate_structured"):
+        return _DeepSeekTrendStage(settings, llm)
     if getattr(settings, "deepseek_configured", False):
         return _DeepSeekTrendStage(settings)
     return None
@@ -1049,16 +1057,24 @@ class _InstagramIntelligenceSource:
 
 
 class _DeepSeekTrendStage:
-    """Turns collected evidence into a brief. It does not browse or publish."""
+    """Turns collected evidence into a brief through the configured reasoning provider.
 
-    def __init__(self, settings: Settings) -> None:
+    This stage does not open its own DeepSeek HTTP client. It uses the provider
+    already selected for the scheduler, or the LLM factory when that provider
+    was not injected.
+    """
+
+    def __init__(self, settings: Settings, provider: Any | None = None) -> None:
         self._settings = settings
+        self._provider = provider
 
     async def analyze(self, context: dict[str, Any]) -> dict[str, Any]:
+        from ai.llm_client import get_llm_provider
         from backend.trends.analyst import DeepSeekTrendAnalyst
 
+        provider = self._provider if self._provider is not None else get_llm_provider(self._settings)
         request = _analysis_request(context)
-        brief = await DeepSeekTrendAnalyst(self._settings).analyze(request)
+        brief = await DeepSeekTrendAnalyst(self._settings, provider=provider).analyze(request)
         return _brief_to_dict(brief, context)
 
 
@@ -1126,21 +1142,27 @@ def _analysis_request(context: dict[str, Any]) -> Any:
             required_posts=int(item.get("required_posts") or 2),
             published_posts=int(item.get("published_posts") or 0),
         )
+    from backend.trends.packet import instagram_evidence
+
+    performance = context.get("performance")
+    instagram = instagram_evidence(performance if isinstance(performance, dict) else None)
     return TrendAnalysisRequest(
         user_id=str(context.get("user_id") or ""),
         analyzed_at=analyzed_at,
         observations=observations,
-        account_insights=_account_insights(context.get("performance"), AccountInsight),
+        account_insights=_account_insights(performance, AccountInsight),
         business_profile=business,
         products=products,
         offers=offers,
         festival=festival,
+        instagram_inferences=instagram["inferences"],
         historical_performance=_historical_performance(
-            context.get("performance"),
+            performance,
             analyzed_at,
             HistoricalPerformance,
             PerformancePoint,
             AccountInsight,
+            extra_points=instagram["points"],
         ),
     )
 
@@ -1216,8 +1238,10 @@ def _account_insights(performance: Any, insight_type: type) -> list[Any]:
     published = performance.get("published_count")
     if isinstance(published, int) and not isinstance(published, bool):
         rows = [*rows, {"metric": "published_count", "value": published, "available": True}]
+    from backend.trends.schemas import DERIVED_ACCOUNT_METRICS
+
     for item in rows:
-        if not isinstance(item, dict) or item.get("available") is False:
+        if not isinstance(item, dict) or item.get("available") is False or item.get("status") == "unavailable":
             continue
         value = item.get("value")
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
@@ -1227,12 +1251,14 @@ def _account_insights(performance: Any, insight_type: type) -> list[Any]:
         metric = str(item.get("metric") or item.get("name") or "").strip()
         if not metric:
             continue
+        kind = "INFERRED" if metric in DERIVED_ACCOUNT_METRICS else "OBSERVED"
         insights.append(
             insight_type(
                 id=f"perf:{metric}",
                 metric=metric,
                 value=value,
                 statement=f"{metric} is {value}",
+                epistemic_status=kind,
             )
         )
     return insights
@@ -1244,9 +1270,12 @@ def _historical_performance(
     history_type: type,
     point_type: type,
     insight_type: type,
+    extra_points: list[Any] | None = None,
 ) -> Any:
     points = []
+    seen: set[str] = set()
     for insight in _account_insights(performance, insight_type):
+        seen.add(insight.id)
         points.append(
             point_type(
                 id=insight.id,
@@ -1256,6 +1285,12 @@ def _historical_performance(
                 recorded_at=recorded_at,
             )
         )
+    for item in extra_points or []:
+        point_id = str(getattr(item, "id", "") or "")
+        if not point_id or point_id in seen:
+            continue
+        seen.add(point_id)
+        points.append(item)
     summary = None
     if isinstance(performance, dict) and isinstance(performance.get("published_count"), int):
         summary = f"Published posts on record: {performance['published_count']}."

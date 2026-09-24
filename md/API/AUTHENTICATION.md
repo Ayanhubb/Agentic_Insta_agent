@@ -31,7 +31,7 @@ Registration and login are public. `GET /api/v1/health` is public. `GET /api/v1/
 
 `POST /api/v1/instagram/connect` stores the Graph token with Fernet (`TOKEN_ENCRYPTION_KEY`, with fallback env name `ACCOUNT_TOKEN_FERNET_KEY`). Responses pass through `strip_secrets`. Disconnect clears the connection for that user only.
 
-A process-level `META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` remain as a fallback when the user has no connected account (`Settings.credentials_configured`). Prefer per-user tokens. The fallback is account-wide and is not tenant-safe if more than one business shares the process. Status: **PARTIAL** for multi-tenant deployments that still set the global token.
+Production publishing does not fall back to `META_ACCESS_TOKEN` or `INSTAGRAM_ACCOUNT_ID`. Those variables are a development-only path (`APP_ENV=development` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`). Without a connected account the API returns `INSTAGRAM_NOT_CONNECTED`.
 
 ## Tests
 

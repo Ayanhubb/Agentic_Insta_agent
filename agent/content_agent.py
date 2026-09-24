@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import re
@@ -12,6 +13,12 @@ from uuid import uuid4
 
 from agent.planner import ALLOWED_TOOL_SET
 from backend.ai.image.base import ImageRequest
+from backend.integrations.canva.execution import (
+    canva_selected,
+    image_from_canva,
+    unavailable_code,
+    unavailable_message,
+)
 from backend.mcp.errors import MCPError
 from backend.mcp.tenant_isolation import trusted_tenant
 from models.content import (
@@ -33,11 +40,17 @@ from models.content import (
     RecentContent,
 )
 from models.errors import AppError, ErrorCode
+from services.asset_resolution import (
+    AssetState,
+    owner_business_id,
+    resolve_brand_logo,
+    resolve_owned_asset,
+    resolve_product_assets,
+)
 from services.image_reference import (
     accepts_content_agent_caller,
     asset_ids_from_mcp,
     bound_reference_images,
-    load_reference_image,
     submit_creative_image,
 )
 from services.logging import log_step
@@ -264,12 +277,14 @@ class ContentAgent:
         event_sink: Any | None = None,
         settings: Any | None = None,
         mcp: Any | None = None,
+        canva: Any | None = None,
     ) -> None:
         self._llm = llm
         self._images = image_generator if image_generator is not None else images
         self._session = session
         self._settings = settings
         self._mcp = mcp
+        self._canva = canva
         if context_store is not None:
             self._store = context_store
         elif session is not None:
@@ -667,6 +682,8 @@ class ContentAgent:
         plan: ContentPlan,
         source: ContentSource,
     ) -> GeneratedImageSnapshot:
+        if canva_selected(plan.canva_action):
+            return await self._generate_canva(request, plan, source)
         if self._images is None:
             raise AppError(ErrorCode.CONTENT_IMAGE_FAILED, "Image generation is not configured.")
         try:
@@ -729,11 +746,55 @@ class ContentAgent:
             theme=plan.theme,
         )
 
+    async def _generate_canva(
+        self,
+        request: ContentStrategyRequest,
+        plan: ContentPlan,
+        source: ContentSource,
+    ) -> GeneratedImageSnapshot:
+        produce = getattr(self._canva, "produce", None)
+        if not callable(produce):
+            raise AppError(ErrorCode.CANVA_NOT_CONNECTED, unavailable_message("CANVA_NOT_CONNECTED"))
+        brief = plan.image_prompt[:4000]
+        result = produce(
+            user_id=request.user_id,
+            action=str(plan.canva_action),
+            brief=brief,
+            asset_ids=list(plan.asset_ids),
+        )
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, GeneratedImageSnapshot):
+            return result
+        if isinstance(result, dict):
+            code = unavailable_code(result)
+            if code:
+                raise AppError(ErrorCode(code), unavailable_message(code))
+            shaped = image_from_canva(result, user_id=request.user_id, prompt=brief, settings=self._settings)
+            return GeneratedImageSnapshot(
+                id=shaped.id,
+                user_id=request.user_id,
+                original_prompt=brief,
+                enhanced_prompt=brief,
+                model=shaped.model,
+                provider=shaped.provider,
+                filename=shaped.filename,
+                storage_path=shaped.storage_path,
+                mime_type=shaped.mime_type,
+                width=shaped.width,
+                height=shaped.height,
+                source=source.value,
+                content_type=plan.content_type.value,
+                theme=plan.theme,
+            )
+        raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva did not return an image.")
+
     async def _reference_inputs(self, request: ContentStrategyRequest, plan: ContentPlan):
         """Load logo and product files the creative actually asked for.
 
-        A missing or unreadable file stays out of the request. The prompt is not
-        rewritten into a stand-in such as "Use the company logo".
+        MCP decides which ids this tenant may see. The resolver then classifies
+        each file. Only AVAILABLE bytes are attached. The prompt is not rewritten
+        into a stand-in such as "Use the company logo".
         """
         if self._mcp is None or self._session is None or self._settings is None:
             return None, None, []
@@ -742,51 +803,103 @@ class ContentAgent:
             tenant = trusted_tenant(request.user_id, source=source)
         except MCPError:
             return None, None, []
-        logo = await self._owned_logo(tenant, request.user_id, plan)
+        business_id = owner_business_id(self._session, request.user_id)
+        logo = await self._owned_logo(tenant, request.user_id, business_id, plan)
         product_image = None
         extras: list[Any] = []
         seen: set[str] = set()
-        if plan.logo_asset_id:
+        if logo is not None and plan.logo_asset_id:
             seen.add(plan.logo_asset_id)
         for token in _featured_tokens(plan):
-            payload = await self._product_image_payload(tenant, token)
-            for asset_id in asset_ids_from_mcp(payload):
-                if asset_id in seen:
+            for resolved in await self._resolved_product_images(tenant, request.user_id, token):
+                if not resolved.available or not resolved.asset_id or resolved.asset_id in seen:
                     continue
-                loaded = load_reference_image(self._session, self._settings, request.user_id, asset_id)
-                if loaded is None:
-                    continue
-                seen.add(asset_id)
+                seen.add(resolved.asset_id)
                 if product_image is None:
-                    product_image = loaded
+                    product_image = resolved.image
                 else:
-                    extras.append(loaded)
+                    extras.append(resolved.image)
         for asset_id in plan.asset_ids:
             if asset_id in seen:
                 continue
-            loaded = load_reference_image(self._session, self._settings, request.user_id, asset_id)
-            if loaded is None:
+            resolved = resolve_owned_asset(self._session, self._settings, request.user_id, asset_id)
+            if not resolved.available or resolved.image is None:
                 continue
-            seen.add(asset_id)
-            extras.append(loaded)
+            seen.add(resolved.asset_id or asset_id)
+            extras.append(resolved.image)
         return logo, product_image, extras
 
-    async def _owned_logo(self, tenant: Any, user_id: str, plan: ContentPlan):
+    async def _owned_logo(self, tenant: Any, user_id: str, business_id: str | None, plan: ContentPlan):
         requested = (plan.logo_asset_id or "").strip()
         if not plan.logo_required and not requested:
             return None
         if requested:
             payload = await self._mcp_data(tenant, "get_company_logo", {"asset_id": requested})
-            ids = asset_ids_from_mcp(payload)
-            loaded = _first_loaded(self, user_id, ids)
-            if loaded is not None:
-                plan.logo_asset_id = ids[0]
-                return loaded
+            if payload.get("found"):
+                resolved = resolve_brand_logo(
+                    self._session,
+                    self._settings,
+                    user_id,
+                    business_id=business_id,
+                    asset_id=requested,
+                )
+                if resolved.available:
+                    plan.logo_asset_id = resolved.asset_id
+                    return resolved.image
         payload = await self._mcp_data(tenant, "get_company_logo", {})
-        ids = asset_ids_from_mcp(payload)
-        loaded = _first_loaded(self, user_id, ids)
-        plan.logo_asset_id = ids[0] if loaded is not None and ids else None
-        return loaded
+        if not payload.get("found"):
+            plan.logo_asset_id = None
+            return None
+        resolved = resolve_brand_logo(self._session, self._settings, user_id, business_id=business_id)
+        if resolved.available:
+            plan.logo_asset_id = resolved.asset_id
+            return resolved.image
+        plan.logo_asset_id = None
+        return None
+
+    async def _resolved_product_images(self, tenant: Any, user_id: str, token: str) -> list[Any]:
+        product_id = await self._visible_product_id(tenant, user_id, token)
+        if product_id:
+            return resolve_product_assets(self._session, self._settings, user_id, product_id)
+        if " " not in token and len(token) <= 64:
+            probed = resolve_product_assets(self._session, self._settings, user_id, token)
+            if probed and probed[0].state is AssetState.UNAUTHORIZED:
+                return []
+        payload = await self._product_image_payload(tenant, token)
+        images = []
+        for asset_id in asset_ids_from_mcp(payload):
+            resolved = resolve_owned_asset(
+                self._session,
+                self._settings,
+                user_id,
+                asset_id,
+                expected_role="product_image",
+            )
+            if resolved.available:
+                images.append(resolved)
+        return images
+
+    async def _visible_product_id(self, tenant: Any, user_id: str, token: str) -> str | None:
+        if " " in token or len(token) > 64:
+            return await self._product_id_by_name(tenant, token)
+        payload = await self._mcp_data(tenant, "get_product_image", {"product_id": token})
+        if payload.get("found"):
+            return token
+        probed = resolve_product_assets(self._session, self._settings, user_id, token)
+        if probed and probed[0].state is AssetState.UNAUTHORIZED:
+            return None
+        if probed and probed[0].state is not AssetState.MISSING:
+            return token
+        return await self._product_id_by_name(tenant, token)
+
+    async def _product_id_by_name(self, tenant: Any, token: str) -> str | None:
+        product = await self._mcp_data(tenant, "get_product", {"name": token})
+        if not product.get("found"):
+            return None
+        body = product.get("product")
+        if isinstance(body, dict) and body.get("id"):
+            return str(body["id"])
+        return None
 
     async def _product_image_payload(self, tenant: Any, token: str) -> dict[str, Any]:
         if " " not in token and len(token) <= 64:
@@ -817,14 +930,6 @@ def _featured_tokens(plan: ContentPlan) -> list[str]:
         if text and text not in tokens:
             tokens.append(text)
     return tokens[:8]
-
-
-def _first_loaded(agent: ContentAgent, user_id: str, asset_ids: list[str]):
-    for asset_id in asset_ids:
-        loaded = load_reference_image(agent._session, agent._settings, user_id, asset_id)
-        if loaded is not None:
-            return loaded
-    return None
 
 
 def build_content_agent(llm: Any, image_generator: Any, **kwargs: Any) -> ContentAgent:

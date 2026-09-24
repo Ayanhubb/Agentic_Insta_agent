@@ -1,6 +1,16 @@
 # Products
 
+No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+
 Related: [Product MCP](../MCP/PRODUCT_MCP.md), [Brand assets](BRAND_ASSETS.md), [Image generation](../AI/IMAGE_GENERATION.md).
+
+## Image resolution
+
+`resolve_product_asset(user_id, product_id)` returns the primary `product_assets` row (`role=primary`). `resolve_product_assets` returns every linked image for that product, primary first, then older alternates.
+
+The link and the `business_assets` row must belong to the same user. Another user's `product_id` is `UNAUTHORIZED`. A product with no image link is `MISSING`. A link whose file is no longer on disk is `DELETED`. A file that is not a readable PNG, JPEG, or WebP is `INVALID`.
+
+Generation attaches `AVAILABLE` bytes only. The primary image is the product image. Further available images for that same product are additional references. No stock photo is substituted when the state is not `AVAILABLE`.
 
 ## Table `products`
 

@@ -31,7 +31,13 @@ from db.repositories import (
 from models.creative import ContentOrchestrationRequest
 from models.errors import AppError, ErrorCode
 from services.media_storage import MediaStorage
-from services.publication import InstagramConnectRequest, PublicationGateway, PublicationService, strip_secrets
+from services.publication import (
+    InstagramConnectRequest,
+    PublicationGateway,
+    PublicationService,
+    publication_block,
+    strip_secrets,
+)
 from scheduler.scheduler import AutomationRunner
 
 router = APIRouter(tags=["platform"])
@@ -469,7 +475,7 @@ def dashboard(request: Request, user: User = Depends(require_password_ok), db: S
         "festival_posts": sum(1 for item in post_rows if item.post_type == "FESTIVAL" and item.status == "PUBLISHED"),
         "daily_automation": automation.daily_enabled,
         "festival_automation": automation.festival_enabled,
-        "instagram_connected": account is not None,
+        "instagram_connected": publication_block(account) is None,
         "recent_images": [_image_payload(item) for item in image_rows],
         "recent_posts": [_post_payload(item, image_map.get(item.generated_image_id or "")) for item in post_rows],
         "upcoming_festival": upcoming,

@@ -35,6 +35,10 @@ Successful payloads always include `tenant_id`.
 
 Every allowlisted handler reads repositories or Graph. None insert posts, none call `PublicationService`, and none accept a publish flag. `get_content_rules` returns `publishing.available: false` and `user_prompt_auto_publish: false`.
 
+## Canva
+
+Canva is not on `MCP_TOOL_ALLOWLIST`. `CanvaAdapter` calls the remote Canva MCP with the signed-in user's encrypted token. The content workflow uses that same adapter: `query` for plan facts, `produce` when the creative plan selects `apply_template` or `use_reference`. OpenAI remains the renderer when the plan action is `none`. Export bytes go to vision QA and approval. The adapter has no Instagram publish tool.
+
 ## Data plane
 
 `RepositoryGateway` (`backend/mcp/sources.py`) opens a session and scopes queries with `tenant_id`. Festival rows come from `FestivalService` plus that tenant's `festival_campaigns`. Account Graph tools use `AccountIntelligenceService` with the tenant's stored token. Trend tools read stored observations; they do not fetch URLs.

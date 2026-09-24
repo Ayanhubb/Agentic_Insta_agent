@@ -1,9 +1,9 @@
-"""Resolve owner-scoped logo and product files for the OpenAI image edit path.
+"""Load owner-scoped logo and product bytes for the OpenAI image edit path.
 
-Bytes are loaded only after the asset id is confirmed for the caller.
-Missing, foreign, deleted, and unreadable files return no image. This module
-does not invent a product photo or a logo, and it does not call OpenAI itself
-except by handing an ImageRequest to the existing image provider.
+Which file to load is decided by ``services.asset_resolution``. This module
+reads a file only after that asset id is confirmed for the caller. Missing,
+foreign, deleted, and unreadable files return no image. It does not invent a
+product photo or a logo.
 """
 
 from __future__ import annotations

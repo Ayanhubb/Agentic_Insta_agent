@@ -42,6 +42,12 @@ The production planner is `DeterministicPlanner`. `LLMPlanner` raises that LLM p
 
 Graph hosts are limited to `graph.facebook.com` and `graph.instagram.com` unless `strict_graph_hosts` is relaxed for localhost tests (`config.py`).
 
+## Whose Instagram account
+
+`PublicationGateway.resolve_credentials` loads the authenticated user's connected account and decrypts that row's token. User A cannot publish with user B's account id or token. The scheduler calls `publish_generated_image` without the environment fallback, and `DailyScheduler` / `FestivalScheduler` stop with `INSTAGRAM_NOT_CONNECTED` when `publication_block` says the owned account cannot publish.
+
+`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are not used for production or for automatic publishing. They are a development-only compatibility path: `APP_ENV` in `development` / `dev` / `local` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. The default `APP_ENV` is `production`, so the path stays off when the variable is unset. The agent still never returns the token.
+
 ## What it does not publish
 
 Reels, stories, and carousels. Captions are still images plus optional caption text (max 2200 characters on the upload route).

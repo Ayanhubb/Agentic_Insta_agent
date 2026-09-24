@@ -52,7 +52,19 @@ from models.creative import (
     SourcedOffer,
     SourcedProduct,
 )
+from backend.integrations.canva.execution import (
+    canva_selected,
+    image_from_canva,
+    unavailable_code,
+    unavailable_message,
+)
 from models.errors import AppError, ErrorCode
+from services.asset_resolution import (
+    owner_business_id,
+    resolve_brand_logo,
+    resolve_owned_asset,
+    resolve_product_assets,
+)
 from services.image_reference import (
     accepts_content_agent_caller,
     asset_ids_from_mcp,
@@ -80,11 +92,18 @@ class ContentOrchestrationResult(BaseModel):
 
 
 class DisabledCanva:
-    """Canva is queried only when requested. With no connection the action is none."""
+    """Canva was requested and no client is configured. The caller returns CANVA_NOT_CONNECTED."""
 
     async def query(self, *, user_id: str) -> dict[str, Any]:
         del user_id
-        return {"queried": True, "action": "none", "asset_ids": []}
+        return {
+            "queried": True,
+            "connected": False,
+            "action": "none",
+            "asset_ids": [],
+            "capabilities": [],
+            "code": "CANVA_NOT_CONNECTED",
+        }
 
 
 def build_content_mcp(session_factory: Any, clock: Any | None = None) -> MCPClient:
@@ -181,7 +200,9 @@ class ContentOrchestrator:
         festival, campaign_type = await self._campaign(tenant, request, mode, (request.user_prompt or ""))
         canva = CanvaFact()
         if _canva_requested(request, request.user_prompt or ""):
-            canva = _canva_fact(await self._call_canva(tenant.tenant_id))
+            payload = await self._call_canva(tenant.tenant_id)
+            _raise_if_canva_unavailable(payload)
+            canva = _canva_fact(payload)
 
         context = CreativeContext(
             user_id=tenant.tenant_id,
@@ -501,10 +522,12 @@ class ContentOrchestrator:
         mode: ContentMode,
         note: str | None,
     ) -> Any:
-        if self._images is None or not hasattr(self._images, "generate"):
-            raise AppError(ErrorCode.CONTENT_IMAGE_FAILED, "Image generation is not configured.")
         prompt = plan.image_prompt if not note else f"{plan.image_prompt}\n{note}"
         prompt = prompt[:4000]
+        if canva_selected(plan.canva_action):
+            return await self._generate_canva(request, plan, prompt)
+        if self._images is None or not hasattr(self._images, "generate"):
+            raise AppError(ErrorCode.CONTENT_IMAGE_FAILED, "Image generation is not configured.")
         references = _image_references(plan, context)
         legacy = ImageGenerationRequest(
             prompt=prompt,
@@ -513,11 +536,13 @@ class ContentOrchestrator:
             source=_image_source(mode),
             references=references,
         )
-        product_ids = [ref.asset_id for ref in references if ref.kind == "product"]
-        product_inputs = _inputs(self, request.user_id, product_ids)
-        logo_ids = list(context.brand.asset_ids)
-        company_logo = _first_input(self, request.user_id, logo_ids)
-        extra_ids = [asset_id for asset_id in plan.asset_ids if asset_id not in set(logo_ids)]
+        product_inputs, company_logo, extra_inputs = _resolved_generation_images(
+            self,
+            request.user_id,
+            plan,
+            context,
+            references,
+        )
         rich = ImageRequest(
             prompt=prompt,
             user_id=request.user_id,
@@ -526,7 +551,7 @@ class ContentOrchestrator:
             reference_images=bound_reference_images(
                 company_logo=company_logo,
                 product_image=product_inputs[0] if product_inputs else None,
-                extras=product_inputs[1:] + _inputs(self, request.user_id, extra_ids),
+                extras=product_inputs[1:] + extra_inputs,
             ),
         )
         generate = self._images.generate
@@ -538,6 +563,29 @@ class ContentOrchestrator:
             if exc.code == ErrorCode.CONTENT_IMAGE_FAILED:
                 raise
             raise AppError(ErrorCode.CONTENT_IMAGE_FAILED, exc.message, http_status=exc.http_status) from exc
+
+    async def _generate_canva(self, request: ContentOrchestrationRequest, plan: CreativePlan, prompt: str) -> Any:
+        produce = getattr(self._canva, "produce", None)
+        if not callable(produce):
+            raise AppError(ErrorCode.CANVA_NOT_CONNECTED, unavailable_message("CANVA_NOT_CONNECTED"), http_status=409)
+        result = produce(
+            user_id=request.user_id,
+            action=plan.canva_action.value,
+            brief=prompt,
+            asset_ids=list(plan.asset_ids),
+        )
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, dict):
+            _raise_if_canva_unavailable(result)
+            return image_from_canva(result, user_id=request.user_id, prompt=prompt, settings=self._settings)
+        return result
+
+
+def _raise_if_canva_unavailable(payload: dict[str, Any]) -> None:
+    code = unavailable_code(payload)
+    if code:
+        raise AppError(ErrorCode(code), unavailable_message(code))
 
 
 def _canva_requested(request: ContentOrchestrationRequest, prompt: str) -> bool:
@@ -558,6 +606,72 @@ def _canva_fact(payload: dict[str, Any]) -> CanvaFact:
     if parsed != CanvaAction.NONE and not asset_ids:
         parsed = CanvaAction.NONE
     return CanvaFact(queried=True, action=parsed, asset_ids=asset_ids)
+
+
+def _resolved_generation_images(
+    orchestrator: ContentOrchestrator,
+    user_id: str,
+    plan: CreativePlan,
+    context: CreativeContext,
+    references: list[ImageReference],
+) -> tuple[list[ImageInput], ImageInput | None, list[ImageInput]]:
+    """Logo and product files for this owner.
+
+    With a database session, bytes come from the asset resolver. A missing logo
+    or product image stays out of the request. Callers without a session keep
+    the asset ids already gathered from MCP.
+    """
+    if orchestrator._session is None or orchestrator._settings is None:
+        product_ids = [ref.asset_id for ref in references if ref.kind == "product"]
+        product_inputs = _inputs(orchestrator, user_id, product_ids)
+        logo_ids = list(context.brand.asset_ids)
+        company_logo = _first_input(orchestrator, user_id, logo_ids)
+        extra_ids = [asset_id for asset_id in plan.asset_ids if asset_id not in set(logo_ids)]
+        return product_inputs, company_logo, _inputs(orchestrator, user_id, extra_ids)
+
+    session = orchestrator._session
+    settings = orchestrator._settings
+    business_id = owner_business_id(session, user_id)
+    logo = resolve_brand_logo(session, settings, user_id, business_id=business_id)
+    company_logo = logo.image if logo.available else None
+    seen: set[str] = set()
+    if logo.available and logo.asset_id:
+        seen.add(logo.asset_id)
+
+    product_inputs: list[ImageInput] = []
+    catalog_ids = [product_id for product_id in plan.product_ids if product_id]
+    if not catalog_ids:
+        catalog_ids = [product.id for product in context.products if product.id]
+    for product_id in catalog_ids:
+        for item in resolve_product_assets(session, settings, user_id, product_id):
+            if not item.available or not item.asset_id or not item.image or item.asset_id in seen:
+                continue
+            seen.add(item.asset_id)
+            product_inputs.append(item.image)
+    if not product_inputs:
+        for ref in references:
+            if ref.kind != "product":
+                continue
+            item = resolve_owned_asset(
+                session,
+                settings,
+                user_id,
+                ref.asset_id,
+                expected_role="product_image",
+            )
+            if item.available and item.asset_id and item.image is not None and item.asset_id not in seen:
+                seen.add(item.asset_id)
+                product_inputs.append(item.image)
+
+    extras: list[ImageInput] = []
+    for asset_id in plan.asset_ids:
+        if asset_id in seen:
+            continue
+        item = resolve_owned_asset(session, settings, user_id, asset_id)
+        if item.available and item.asset_id and item.image is not None and item.asset_id not in seen:
+            seen.add(item.asset_id)
+            extras.append(item.image)
+    return product_inputs, company_logo, extras
 
 
 def _image_references(plan: CreativePlan, context: CreativeContext) -> list[ImageReference]:

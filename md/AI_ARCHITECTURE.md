@@ -6,29 +6,29 @@ Related: [Architecture](ARCHITECTURE.md), [DeepSeek](AI/DEEPSEEK.md), [OpenAI](A
 
 | Job | Implementation | Status |
 | --- | --- | --- |
-| Studio creative plan (`POST /api/v1/generation`) | `get_creative_model` in `ai/creative_model.py`. Non-empty `DEEPSEEK_API_KEY` → `DeepSeekCreativeClient`. Empty key → `GroundedCreativeModel` (local template, no HTTP) | Implemented |
-| Scheduler content plan | `ContentAgent` + `get_llm_provider` in `ai/llm_client.py`. `LLM_PROVIDER` default `openai` | Implemented |
+| Studio creative plan (`POST /api/v1/generation`) | `get_creative_model` in `ai/creative_model.py`. `LLM_PROVIDER=deepseek` and a non-empty `DEEPSEEK_API_KEY` → `DeepSeekCreativeClient`. Otherwise `GroundedCreativeModel` (local template, no HTTP) | Implemented |
+| Scheduler content plan | `ContentAgent` + `select_reasoning_provider` in `ai/llm_client.py`. `LLM_PROVIDER` default `deepseek` | Implemented |
 | Image pixels | `get_image_generation_provider` returns `OpenAIImageGenerationProvider` only for `openai` or an empty name. Studio references with bytes use `backend.ai.image.OpenAIImageProvider.edit` | Implemented |
 | Vision QA | `DeepSeekVisionProvider` in `ai/vision/deepseek.py` when the factory loads. Scheduler `ImageQAService` passes structurally if no vision client is attached | Implemented |
 | DeepSeek image generation | No image endpoint, no `images.generate` call | NOT IMPLEMENTED |
 | OpenAI vision QA | Not wired. `VISION_PROVIDER` default is `deepseek` | NOT IMPLEMENTED |
 
-`DeepSeek = reasoning` and `OpenAI = images` is true for the studio path when a DeepSeek key is set. It is not true for the scheduler while `LLM_PROVIDER` stays `openai`, which is the default in `.env.example` and `config.py`.
+`DeepSeek = reasoning` and `OpenAI = images`. `LLM_PROVIDER` defaults to `deepseek`. `IMAGE_PROVIDER` defaults to `openai`. An OpenAI key does not become the reasoning provider. Live `DEEPSEEK_API_KEY` and `OPENAI_API_KEY` values are optional until a real call is requested. Startup logs the provider names and does not log keys.
 
 ## Provider selection in `create_app`
 
-`api/app.py` `_select_llm`:
+`select_reasoning_provider`:
 
-- `llm_provider == "deepseek"` and key plus `deepseek_model` → `get_llm_provider` → `DeepSeekLLMProvider`.
-- Otherwise if OpenAI key and `llm_model` are set → `OpenAILLMProvider`.
-- Otherwise → `MockLLMProvider`.
+- `LLM_PROVIDER=deepseek` (the default) and key plus `DEEPSEEK_MODEL` → `DeepSeekLLMProvider`.
+- `LLM_PROVIDER=deepseek` without a key → `MockLLMProvider`. The process still starts. `get_llm_provider` still returns DeepSeek, and a live call raises `DEEPSEEK_CONFIGURATION_ERROR`.
+- `LLM_PROVIDER=openai` and key plus `LLM_MODEL` → `OpenAILLMProvider`. This is explicit only.
+- `LLM_PROVIDER=mock`, or an unknown name at startup → `MockLLMProvider`. `get_llm_provider` raises `OPENAI_CONFIGURATION_ERROR` for an unknown name.
 
-Images:
+`select_image_provider`:
 
-- OpenAI key and (`image_model` or `openai_image_model`) → `get_image_generation_provider`.
-- Otherwise → `MockImageGenerationProvider`.
-
-An unsupported `LLM_PROVIDER` or `IMAGE_PROVIDER` raises `OPENAI_CONFIGURATION_ERROR` (HTTP 503) from the factories. The app startup path avoids that for the LLM by falling back to the mock when the selected provider is not fully configured.
+- `IMAGE_PROVIDER=openai` and key plus an image model → `OpenAIImageGenerationProvider`.
+- Missing key or model, `IMAGE_PROVIDER=mock`, or a non-image name such as `deepseek` → `MockImageGenerationProvider` at startup.
+- `get_image_generation_provider` returns OpenAI for `openai`. `generate` without a key raises `OPENAI_CONFIGURATION_ERROR`. Any other live name, including `deepseek`, raises that configuration error and does not generate pixels.
 
 ## Structured output
 

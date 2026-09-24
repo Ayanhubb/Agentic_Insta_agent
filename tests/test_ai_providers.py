@@ -40,6 +40,7 @@ def test_provider_abstraction_allows_non_openai_implementation() -> None:
 def test_factories_return_configured_openai_providers(tmp_path: Path) -> None:
     settings = test_settings(
         tmp_path,
+        llm_provider="openai",
         openai_api_key="sk-test-not-a-real-openai-key-xxxxx",
         llm_model="configured-llm-model",
         image_model="configured-image-model",

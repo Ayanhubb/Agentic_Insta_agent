@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ai import get_image_generation_provider, get_llm_provider
-from ai.mocks import MockImageGenerationProvider, MockLLMProvider
+from ai.image_generator import select_image_provider
+from ai.llm_client import log_provider_selection, select_reasoning_provider
 from agent.agent import InstagramAgent
 from agent.instagram_tasks import bind_publication_gateway
 from api.asset_routes import router as asset_router
@@ -37,17 +37,6 @@ from services.logging import configure_logging, redact_text
 from services.media_storage import MediaStorageService
 from services.publication import PublicationGateway
 from services.publication_store import InMemoryPublicationStore
-
-
-def _select_llm(settings: Settings):
-    provider = (settings.llm_provider or "openai").strip().lower()
-    if provider == "deepseek":
-        if settings.deepseek_configured and settings.deepseek_model.strip():
-            return get_llm_provider(settings)
-        return MockLLMProvider()
-    if settings.openai_configured and settings.llm_model.strip():
-        return get_llm_provider(settings)
-    return MockLLMProvider()
 
 
 def create_app(
@@ -80,12 +69,10 @@ def create_app(
     clock = clock or Clock()
 
     if llm_provider is None:
-        llm_provider = _select_llm(settings)
+        llm_provider = select_reasoning_provider(settings)
     if image_provider is None:
-        if settings.openai_configured and (settings.image_model.strip() or settings.openai_image_model.strip()):
-            image_provider = get_image_generation_provider(settings, storage=media_service)
-        else:
-            image_provider = MockImageGenerationProvider(media_service)
+        image_provider = select_image_provider(settings, storage=media_service)
+    log_provider_selection(settings)
     from scheduler.integrations import resolve_festival_mcp, resolve_vision
 
     vision_provider = resolve_vision(settings)

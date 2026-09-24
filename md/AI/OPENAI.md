@@ -2,14 +2,14 @@
 
 Related: [Image generation](IMAGE_GENERATION.md), [DeepSeek](DEEPSEEK.md), [AI architecture](../AI_ARCHITECTURE.md).
 
-OpenAI is the image provider. It is also the default scheduler chat provider. It does not publish to Instagram and it is not the vision QA provider.
+OpenAI is the image provider. It is not the default reasoning provider. It does not publish to Instagram and it is not the vision QA provider. An `OPENAI_API_KEY` does not move content planning, studio planning, or trend analysis onto OpenAI.
 
 ## Environment
 
 | Variable | Default | Use |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | empty | Backend only. Never `VITE_*` |
-| `LLM_PROVIDER` | `openai` | `openai` selects `OpenAILLMProvider` |
+| `LLM_PROVIDER` | `deepseek` | Reasoning. `openai` selects `OpenAILLMProvider` only when set explicitly |
 | `LLM_MODEL` | empty | Required for a live chat call. `.env.example` uses `<configured-model>` |
 | `LLM_TEMPERATURE` | `0.4` | Chat sampling |
 | `LLM_MAX_ATTEMPTS` | `3` | Retries |
@@ -22,7 +22,9 @@ OpenAI is the image provider. It is also the default scheduler chat provider. It
 | `IMAGE_MAX_ATTEMPTS` | `3` | Image retries |
 | `REQUEST_TIMEOUT_SECONDS` | `30` | Client timeout |
 
-Startup uses the mock LLM when `LLM_PROVIDER` is `openai` but the key or `LLM_MODEL` is empty. Startup uses the mock image provider when the key or both image model fields are empty.
+Live credentials are optional until a real image call is requested. Startup does not require `OPENAI_API_KEY`. When `IMAGE_PROVIDER=openai` but the key or image model is empty, startup uses `MockImageGenerationProvider` and does not crash. `OpenAIImageGenerationProvider.generate` then raises `OPENAI_CONFIGURATION_ERROR`.
+
+`LLM_PROVIDER=openai` with a key and `LLM_MODEL` still selects `OpenAILLMProvider`. That path is opt-in. The default reasoning provider is DeepSeek.
 
 ## Chat (`ai/openai_llm.py`)
 
@@ -32,7 +34,7 @@ Retries: up to `llm_max_attempts`, including a retry when the theme repeats. Rat
 
 The system text tells the model not to include publish instructions. The class has no tools.
 
-This chat client is what `ContentAgent` uses when `LLM_PROVIDER=openai`. The studio orchestrator does not use it; that path uses DeepSeek or `GroundedCreativeModel`. See [AI architecture](../AI_ARCHITECTURE.md).
+This chat client is what `ContentAgent` uses only when `LLM_PROVIDER=openai`. The default scheduler and studio paths use DeepSeek, or a local mock / `GroundedCreativeModel` when the DeepSeek key is absent. See [AI architecture](../AI_ARCHITECTURE.md).
 
 ## Images
 

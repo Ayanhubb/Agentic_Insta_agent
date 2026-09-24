@@ -31,6 +31,12 @@ Unavailable: `found: false`, `source`, `metric`, `status: "unavailable"`, `reaso
 
 `get_publishing_history` success keys: `found`, `source=instagram_posts`, `live_graph`, `account_status`, `instagram_account_id`, `truncated`, `posts`. If the user has no owned account, reason `INSTAGRAM_NOT_CONNECTED`.
 
+`trend_context.captured_at` is the time of the Graph read. Metrics Meta did not return use `status=unavailable` and `value=null`. The trend packet copies only `status=available` metrics. It does not fill a missing number.
+
+The model cannot select an account. `user_id`, `account_id`, and `instagram_account_id` are stripped before the handler runs. The service then checks that the Graph profile id matches the tenant's connected account.
+
+These tools are on the live registry from `build_registry`. `backend/trends/packet.py` is the caller that forwards the normalized context to DeepSeek. None of these tools publish.
+
 ## Tests
 
-`tests/test_mcp_account_intelligence.py`, `tests/test_instagram_intelligence.py`.
+`tests/test_mcp_account_intelligence.py`, `tests/test_instagram_intelligence.py`, `tests/test_instagram_mcp_deepseek.py`.

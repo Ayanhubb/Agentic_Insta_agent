@@ -81,8 +81,19 @@ def get_image_generation_provider(
     client: object | None = None,
     storage: GeneratedImageStore | None = None,
 ) -> ImageGenerationProvider:
-    name = (settings.image_provider or "").strip().lower()
-    if name in {"", "openai"}:
+    """Return the live image provider named by IMAGE_PROVIDER.
+
+    DeepSeek is not an image provider. A missing OpenAI key is reported when
+    generate() runs, not when this factory constructs the provider.
+    """
+    from ai.llm_client import image_provider_name
+
+    name = image_provider_name(settings)
+    if name == "mock":
+        from ai.mocks import MockImageGenerationProvider
+
+        return MockImageGenerationProvider(storage)
+    if name == "openai":
         from ai.openai_image_generator import OpenAIImageGenerationProvider
 
         return OpenAIImageGenerationProvider(settings, client=client, storage=storage)
@@ -92,3 +103,26 @@ def get_image_generation_provider(
         http_status=503,
         details={"image_provider": name},
     )
+
+
+def select_image_provider(
+    settings: Settings,
+    *,
+    client: object | None = None,
+    storage: GeneratedImageStore | None = None,
+) -> ImageGenerationProvider:
+    """Image provider used at startup.
+
+    OpenAI is used when IMAGE_PROVIDER is openai and a key plus image model are
+    set. Otherwise the mock is used so startup does not require OPENAI_API_KEY
+    and does not ask DeepSeek to generate pixels.
+    """
+    from ai.llm_client import image_provider_name
+
+    name = image_provider_name(settings)
+    configured = settings.openai_configured and bool(settings.image_model.strip() or settings.openai_image_model.strip())
+    if name == "openai" and configured:
+        return get_image_generation_provider(settings, client=client, storage=storage)
+    from ai.mocks import MockImageGenerationProvider
+
+    return MockImageGenerationProvider(storage)

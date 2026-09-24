@@ -1,5 +1,7 @@
 # Brand and asset MCP
 
+No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+
 Related: [Brand assets](../CONTENT/BRAND_ASSETS.md), [MCP architecture](MCP_ARCHITECTURE.md), [Tenant isolation](../SECURITY/TENANT_ISOLATION.md).
 
 Two servers. Both are read-only and cannot publish.
@@ -32,7 +34,9 @@ Data: `brand_profiles` logo foreign keys and `business_assets` whose role is a l
 
 Error: `ASSET_ACCESS_DENIED`.
 
-The returned object identifies the file. Bytes are loaded only by `load_reference_image` after the owner check. If no file exists, image generation does not receive logo pixels.
+The returned object identifies the file for this tenant. Another tenant's `asset_id` raises `ASSET_ACCESS_DENIED`. The tool does not return that file.
+
+`resolve_brand_logo` and `resolve_brand_assets` (`services/asset_resolution.py`) then classify the caller's business (`business_profiles.id`) as `AVAILABLE`, `MISSING`, `INVALID`, `UNAUTHORIZED`, or `DELETED`. Only an `AVAILABLE` raster is passed into the OpenAI edit call. A missing logo does not block startup and does not invent a mark.
 
 ## Business profile (related)
 

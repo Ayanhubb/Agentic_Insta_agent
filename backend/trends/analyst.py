@@ -82,6 +82,12 @@ DISCOVERED cites researched trend observations.
 INFERRED interprets cited evidence and does not recommend an action.
 RECOMMENDED proposes an action and cites evidence.
 Never merge those kinds into one statement.
+Account insights include epistemic_status. Cite an OBSERVED insight only as OBSERVED.
+Cite an INFERRED insight only as INFERRED. instagram_inferences are already INFERRED.
+Do not present an inference or a recommendation as an observed fact.
+OBSERVED example: "5 posts were published during the selected period."
+INFERRED example: "Product-focused posts represented a larger share of recent content."
+RECOMMENDED example: "Consider testing another product-led creative."
 Each recommendation includes why_now, evidence, business_relevance, product_relevance,
 festival_relevance, recommended_format, creative_direction, confidence, and expiration.
 Use evidence_strength values "strong evidence", "moderate evidence", or "limited evidence".
@@ -289,6 +295,9 @@ def _epistemic_status(record: Any, index: _EvidenceIndex) -> str:
             if any(piece.id == record.id for piece in observation.evidence):
                 return observation.epistemic_status
         return "DISCOVERED"
+    status = getattr(record, "epistemic_status", None)
+    if status in {"OBSERVED", "INFERRED", "DISCOVERED"}:
+        return status
     return "OBSERVED"
 
 
@@ -619,11 +628,12 @@ class DeepSeekTrendAnalyst:
         transport: Any | None = None,
         vision: CreativeVision | None = None,
         sleeper: Callable[[float], Awaitable[None]] | None = None,
+        provider: Any | None = None,
     ) -> None:
         self._settings = settings
         self._transport = transport
         self._vision = vision
-        self._provider = DeepSeekLLMProvider(settings, transport=transport, sleeper=sleeper)
+        self._provider = provider if provider is not None else DeepSeekLLMProvider(settings, transport=transport, sleeper=sleeper)
 
     async def analyze(self, request: TrendAnalysisRequest) -> TrendBrief:
         notes, gaps = await self._visual_notes(request)

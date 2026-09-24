@@ -36,6 +36,20 @@ def require_canva_https_url(url: str, *, allow_unofficial: bool) -> str:
     return url.strip()
 
 
+def allow_export_url(url: str) -> bool:
+    """True for an HTTPS Canva export host that does not carry a token in the query."""
+    parsed = urlparse((url or "").strip())
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return False
+    if host != "canva.com" and not host.endswith((".canva.com", ".canva.ai")):
+        return False
+    query = parsed.query.casefold()
+    if any(marker in query for marker in ("access_token", "refresh_token", "code_verifier", "client_secret")):
+        return False
+    return True
+
+
 def require_redirect_uri(uri: str) -> str:
     parsed = urlparse((uri or "").strip())
     host = (parsed.hostname or "").lower()

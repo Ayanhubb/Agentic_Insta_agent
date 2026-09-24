@@ -30,8 +30,11 @@ def _sample_image(path: Path) -> Path:
 async def main() -> int:
     settings = Settings.from_env()
     settings.ensure_directories()
-    if not settings.credentials_configured:
-        print("REAL TEST NOT RUN — META CREDENTIALS NOT CONFIGURED")
+    if not settings.legacy_environment_credentials_allowed():
+        print(
+            "REAL TEST NOT RUN — set APP_ENV=development and INSTAGRAM_LEGACY_ENV_FALLBACK=true "
+            "with META_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID. Production does not use those variables."
+        )
         return 0
     image = _sample_image(settings.temp_dir / "real-publish-once.jpg")
     agent = InstagramAgent(settings)

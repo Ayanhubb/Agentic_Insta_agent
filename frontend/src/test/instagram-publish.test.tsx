@@ -13,7 +13,7 @@ describe("instagram upload publish", () => {
     mockApi({
       "GET /api/v1/auth/me": () => jsonResponse({ user: adminUser }),
       "GET /api/v1/instagram/status": () =>
-        jsonResponse({ connected: false, environment_configured: true, source: "environment" }),
+        jsonResponse({ connected: true, environment_configured: false, source: "user", instagram_account_id: "ig-user" }),
     });
     renderApp(<App />, { route: "/instagram" });
     await screen.findByRole("heading", { name: "Instagram" });
@@ -27,7 +27,7 @@ describe("instagram upload publish", () => {
     mockApi({
       "GET /api/v1/auth/me": () => jsonResponse({ user: adminUser }),
       "GET /api/v1/instagram/status": () =>
-        jsonResponse({ connected: false, environment_configured: true, source: "environment" }),
+        jsonResponse({ connected: true, environment_configured: false, source: "user", instagram_account_id: "ig-user" }),
       "POST /api/v1/instagram/publish": (_url, init) => {
         posted = true;
         const body = init?.body as FormData;

@@ -7,19 +7,27 @@ This page replaces the design note that lived in `docs/TREND_INTELLIGENCE_ARCHIT
 ## Pipeline
 
 ```text
-trend_sources (user URLs, enabled)
+Meta Graph API (GET only, authorized account)
         ↓
-TrendResearcher.collect  — DISCOVERED pages, allowlisted hosts
+AccountIntelligenceService trend_context
         ↓
-trend_observations + trend_evidence  — OBSERVED
+MCP account tools (authenticated tenant only)
+        ↓
+trend_sources → TrendResearcher.collect — DISCOVERED
+        ↓
+trend_observations + trend_evidence
         ↓
 TrendIntelligence packet (MCP reads only)
+        account summary, recent content, available metrics,
+        historical performance, trend evidence,
+        festival, business, and product context
         ↓
-DeepSeekTrendAnalyst  — INFERRED TrendBrief
+DeepSeekTrendAnalyst
+        OBSERVED facts, INFERRED interpretations, RECOMMENDED actions
         ↓
 trend_reports
         ↓
-content_opportunities  — RECOMMENDED
+content_opportunities — RECOMMENDED
         ↓
 optional CampaignPipeline when auto-publish flags already allow it
         ↓
@@ -43,7 +51,17 @@ Trend tick failures do not roll back the daily and festival work. They return `{
 
 ## Account context inside the packet
 
-Account MCP tools may be included as evidence when a token exists. Missing insights stay unavailable. The analyst is not given permission to fill them.
+`collect_mcp_evidence` calls `get_account_summary`, `get_recent_media`, `get_account_insights`, `get_top_content`, and `get_content_performance`. Those handlers ignore `user_id` and `account_id` arguments. The tenant comes from `TenantContext`.
+
+`build_trend_request` keeps metrics whose `status` is `available`, stores `captured_at` on the insight, and records unavailable metrics as gaps. Derived sample comparisons are `instagram_inferences`. DeepSeek must cite an **OBSERVED** insight as OBSERVED and an **INFERRED** insight as INFERRED. A recommendation is not a fact.
+
+Example the analyst is instructed to follow:
+
+- OBSERVED: "5 posts were published during the selected period."
+- INFERRED: "Product-focused posts represented a larger share of recent content."
+- RECOMMENDED: "Consider testing another product-led creative."
+
+Meta disconnects, expired tokens, missing permissions, empty samples, omitted metrics, timeouts, and rate limits stay inside the tool result. The scheduler's meta fetch and analyzer call catch those failures and still save a report.
 
 ## API
 

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from api.app import create_app
 from api.security import CurrentUser, get_current_user
 from config import Settings
-from tests.helpers import DummyInstagramClient, auth_client_headers, write_jpeg, write_png
+from tests.helpers import DummyInstagramClient, auth_client_headers, connect_instagram, write_jpeg, write_png
 
 _PROFILE = {
     "business_name": "Pal Jewels",
@@ -115,6 +115,7 @@ def test_v1_publish_endpoint_still_accepts_upload(tmp_settings: Settings, tmp_pa
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers = auth_client_headers(client)
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             response = client.post(
                 "/api/v1/instagram/publish?wait=true",

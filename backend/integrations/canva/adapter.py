@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+
 from sqlalchemy.orm import sessionmaker
 
 from backend.integrations.canva.catalog import (
@@ -36,6 +38,7 @@ from backend.integrations.canva.catalog import (
     clean_operations,
     shape_format,
 )
+from backend.integrations.canva.endpoints import allow_export_url
 from backend.integrations.canva.contracts import (
     CanvaAccountStatus,
     CanvaBrandAssets,
@@ -74,6 +77,9 @@ logger = logging.getLogger(__name__)
 
 TokenExchange = Callable[[dict[str, str]], Awaitable[dict[str, Any]]]
 SessionOpener = Callable[[str], Any]
+ExportFetcher = Callable[[str], Awaitable[bytes]]
+_PUBLISH_MARKERS = ("publish", "instagram")
+_EXPORT_BYTE_CAP = 8 * 1024 * 1024
 
 
 def _intent(value: str | None, fallback: str) -> str:
@@ -95,11 +101,13 @@ class CanvaAdapter:
         *,
         token_exchange: TokenExchange | None = None,
         session_opener: SessionOpener | None = None,
+        export_fetcher: ExportFetcher | None = None,
     ) -> None:
         self._settings = settings
         self._store = CanvaConnectionStore(settings, session_factory)
         self.token_exchange = token_exchange or self._default_exchange
         self.session_opener = session_opener
+        self.export_fetcher = export_fetcher
 
     async def _default_exchange(self, form: dict[str, str]) -> dict[str, Any]:
         return await exchange_token(self._settings, form)
@@ -187,19 +195,153 @@ class CanvaAdapter:
         image_id: str | None = None,
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
-        """Optional scheduler hook. Never publishes and never invents tool calls."""
+        """Scheduler observation hook. The content agent already chose the renderer.
+
+        This does not create a design, does not export, and does not publish.
+        """
         del image_id, correlation_id
+        normalized = str(action or "").strip().lower()
         if not self._settings.canva_enabled:
-            return {"applied": False, "reason": "disabled"}
+            return {"applied": False, "reason": "disabled", "code": ErrorCode.CANVA_DISABLED.value}
+        if normalized in {"", "none"}:
+            return {"applied": False, "reason": "not_selected", "action": "none"}
         owner = owner_from_user_id(user_id)
-        account = await self.status(owner)
+        code = self._connection_code(owner)
+        if code:
+            return {"applied": False, "reason": "not_connected", "code": code, "connected": False, "action": normalized}
         return {
             "applied": False,
-            "reason": "explicit_capability_required",
-            "action": action,
-            "connected": account.connected,
-            "capabilities": account.capabilities,
+            "reason": "rendered_by_content_agent",
+            "action": normalized,
+            "connected": True,
         }
+
+    async def query(self, *, user_id: str) -> dict[str, Any]:
+        """Facts for the creative plan. No tokens, URLs, or invented brand files."""
+        owner = owner_from_user_id(user_id)
+        empty: dict[str, Any] = {
+            "queried": True,
+            "connected": False,
+            "action": "none",
+            "asset_ids": [],
+            "capabilities": [],
+        }
+        code = self._connection_code(owner)
+        if code:
+            return {**empty, "code": code}
+        try:
+            listed = await self.get_brand_assets(
+                owner,
+                query="brand template",
+                user_intent="List this account's Canva brand templates and assets.",
+            )
+            account = await self.status(owner)
+        except AppError as exc:
+            if exc.code == ErrorCode.CANVA_AUTHORIZATION_FAILED:
+                self._store.mark(owner, "authorization_failed")
+            if exc.code == ErrorCode.CANVA_CAPABILITY_UNAVAILABLE:
+                return {**empty, "connected": True, "code": None}
+            mapped = exc.code.value if exc.code.value in {
+                ErrorCode.CANVA_NOT_CONNECTED.value,
+                ErrorCode.CANVA_AUTHORIZATION_FAILED.value,
+                ErrorCode.CANVA_DISABLED.value,
+            } else ErrorCode.CANVA_UNAVAILABLE.value
+            return {**empty, "code": mapped}
+        ids = [item.id for item in listed.assets if item.id]
+        action = "none"
+        if any(item.kind == "brand_template" for item in listed.assets):
+            action = "apply_template"
+        elif ids:
+            action = "use_reference"
+        return {
+            "queried": True,
+            "connected": bool(account.connected),
+            "action": action,
+            "asset_ids": ids,
+            "capabilities": list(account.capabilities),
+            "code": None,
+        }
+
+    async def produce(
+        self,
+        *,
+        user_id: str,
+        action: str,
+        brief: str,
+        asset_ids: list[str],
+    ) -> dict[str, Any]:
+        """Create and export a design for this user. The result has image bytes and no tokens."""
+        owner = owner_from_user_id(user_id)
+        code = self._connection_code(owner)
+        if code == ErrorCode.CANVA_AUTHORIZATION_FAILED.value:
+            raise AppError(ErrorCode.CANVA_AUTHORIZATION_FAILED, "Canva authorization expired.", http_status=401)
+        if code:
+            raise AppError(ErrorCode.CANVA_NOT_CONNECTED, "Canva is not connected for this user.", http_status=409)
+        selected = str(getattr(action, "value", action) or "").strip().lower()
+        if selected not in {"apply_template", "use_reference"}:
+            raise AppError(ErrorCode.INVALID_REQUEST, "Canva was not selected for this creative.", http_status=400)
+        requested = [item.strip() for item in asset_ids if item and str(item).strip()]
+        if not requested:
+            raise AppError(
+                ErrorCode.CANVA_CAPABILITY_UNAVAILABLE,
+                "Canva needs an asset from the connected account.",
+                http_status=409,
+            )
+        text = (brief or "").strip()
+        if len(text) < 20:
+            raise AppError(ErrorCode.INVALID_REQUEST, "A design brief is required.", http_status=400)
+        listed = await self.get_brand_assets(
+            owner,
+            query=text[:120] if selected == "apply_template" else None,
+            asset_ids=requested,
+            user_intent="Retrieve authorized Canva assets for this design.",
+        )
+        by_id = {item.id: item for item in listed.assets}
+        if not set(requested) <= set(by_id):
+            raise AppError(
+                ErrorCode.PERMISSION_ERROR,
+                "Canva can only use assets from the connected account.",
+                http_status=403,
+            )
+        template_id = next((item.id for item in listed.assets if item.kind == "brand_template" and item.id in requested), None)
+        brand_kit_id = next((item.id for item in listed.assets if item.kind == "brand_kit" and item.id in requested), None)
+        created = await self.create_design(
+            owner,
+            query=text[:1000],
+            design_type="instagram_post",
+            brand_kit_id=brand_kit_id,
+            template_id=template_id,
+            reference_asset_ids=requested,
+            user_intent="Create a design from the approved creative brief.",
+        )
+        if created.design is None and created.job_id and created.candidates:
+            created = await self.create_design(
+                owner,
+                query=text[:1000],
+                candidate_id=created.candidates[0].candidate_id,
+                job_id=created.job_id,
+                user_intent="Save the selected Canva design candidate.",
+            )
+        if created.design is None or not created.design.id:
+            raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva did not return a design.", http_status=503)
+        exported = await self.export_design(
+            owner,
+            design_id=created.design.id,
+            format="png",
+            user_intent="Export the design for review.",
+        )
+        image_bytes = await self._download_export(exported)
+        return {"provider": "canva", "image_bytes": image_bytes, "mime_type": "image/png"}
+
+    def _connection_code(self, owner: CanvaOwner) -> str | None:
+        if not self._settings.canva_enabled:
+            return ErrorCode.CANVA_DISABLED.value
+        stored = self._store.get(owner)
+        if stored is not None and stored.status == "connected" and stored.access_token:
+            return None
+        if stored is not None and stored.status == "authorization_failed":
+            return ErrorCode.CANVA_AUTHORIZATION_FAILED.value
+        return ErrorCode.CANVA_NOT_CONNECTED.value
 
     async def create_design(
         self,
@@ -210,6 +352,8 @@ class CanvaAdapter:
         candidate_id: str | None = None,
         job_id: str | None = None,
         brand_kit_id: str | None = None,
+        template_id: str | None = None,
+        reference_asset_ids: list[str] | None = None,
         user_intent: str | None = None,
     ) -> CanvaDesignCreation:
         self._ensure_enabled()
@@ -225,6 +369,8 @@ class CanvaAdapter:
         if not brief and not selected:
             raise AppError(ErrorCode.INVALID_REQUEST, "A design brief is required.", http_status=400)
         intent = _intent(user_intent, "Create a Canva design.")
+        references = [item.strip() for item in (reference_asset_ids or []) if item and str(item).strip()] or None
+        template = (template_id or "").strip() or None
         async with self._session(owner) as session:
             tools = await self._index(session)
             self._require_capability(tools, "create_design")
@@ -247,6 +393,8 @@ class CanvaAdapter:
                             "prompt": brief,
                             "design_type": (design_type or "").strip() or None,
                             "brand_kit_id": (brand_kit_id or "").strip() or None,
+                            "template_id": template,
+                            "asset_ids": references,
                             "user_intent": intent,
                         },
                     )
@@ -268,6 +416,8 @@ class CanvaAdapter:
                     "query": brief,
                     "design_type": (design_type or "").strip() or None,
                     "brand_kit_id": (brand_kit_id or "").strip() or None,
+                    "template_id": template,
+                    "asset_ids": references,
                     "user_intent": intent,
                 },
             )
@@ -509,6 +659,7 @@ class CanvaAdapter:
             )
 
     async def _call(self, session: Any, tool: DiscoveredTool, values: dict[str, Any]) -> dict[str, Any]:
+        _refuse_publish_tool(tool.name)
         arguments = bind_schema(tool.input_schema, values)
         started = time.perf_counter()
         try:
@@ -563,6 +714,22 @@ class CanvaAdapter:
         )
         return str(payload["access_token"])
 
+    async def _download_export(self, exported: CanvaExportResult) -> bytes:
+        if exported.status != "success" or not exported.download_urls:
+            raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva did not export an image.", http_status=503)
+        url = next((item for item in exported.download_urls if allow_export_url(item)), "")
+        if not url:
+            raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva export URL was rejected.", http_status=503)
+        if self.export_fetcher is not None:
+            data = await self.export_fetcher(url)
+        else:
+            data = await _http_get_export(url, timeout=self._settings.canva_timeout_seconds)
+        if not isinstance(data, (bytes, bytearray)) or not data:
+            raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva export was empty.", http_status=503)
+        if len(data) > _EXPORT_BYTE_CAP:
+            raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva export was too large.", http_status=503)
+        return bytes(data)
+
     def _open_session(self, access_token: str) -> Any:
         if self.session_opener is not None:
             return self.session_opener(access_token)
@@ -583,6 +750,28 @@ class CanvaAdapter:
             close = getattr(session, "aclose", None)
             if callable(close):
                 await close()
+
+
+def _refuse_publish_tool(name: str) -> None:
+    lowered = name.lower().replace("_", "-")
+    if any(marker in lowered for marker in _PUBLISH_MARKERS):
+        raise AppError(
+            ErrorCode.CANVA_CAPABILITY_UNAVAILABLE,
+            "Canva cannot publish to Instagram.",
+            http_status=409,
+        )
+
+
+async def _http_get_export(url: str, *, timeout: float) -> bytes:
+    """Download a pre-signed export. The Canva access token is not sent."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            response = await client.get(url)
+    except httpx.HTTPError as exc:
+        raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva export could not be downloaded.", http_status=503) from exc
+    if response.status_code != 200:
+        raise AppError(ErrorCode.CANVA_UNAVAILABLE, "Canva export could not be downloaded.", http_status=503)
+    return response.content
 
 
 def _creation_payload(payload: dict[str, Any], *, job_id: str | None) -> CanvaDesignCreation:

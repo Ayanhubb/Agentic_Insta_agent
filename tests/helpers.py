@@ -93,6 +93,21 @@ def auth_client_headers(client, *, email: str = "user@example.com", password: st
 auth_client_headers.__test__ = False
 
 
+def connect_instagram(client, headers: dict[str, str], *, account_id: str = "ig-user-1", token: str = "user-token") -> None:
+    """Attach this user's encrypted Instagram token. Publishing does not use process credentials."""
+    response = client.post(
+        "/api/v1/instagram/connect",
+        headers=headers,
+        json={"instagram_account_id": account_id, "access_token": token},
+    )
+    if response.status_code != 200:
+        raise AssertionError(response.text)
+    assert token not in response.text
+
+
+connect_instagram.__test__ = False
+
+
 class ScriptedTool(Tool):
     """Deterministic fake tool that yields scripted observations."""
 

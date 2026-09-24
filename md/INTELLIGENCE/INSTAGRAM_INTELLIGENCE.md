@@ -86,3 +86,11 @@ Computed from the sample, not from a Graph metric of the same name: `posting_fre
 ## Persistence
 
 `account_snapshots`, `media_snapshots`, `insight_snapshots`, and `instagram_intelligence_records` store what was returned. They are not a second source of truth for numbers Meta did not send.
+
+## Trend MCP and DeepSeek
+
+`backend/mcp/servers/account.py` registers the live read tools on the MCP registry: `get_account_summary`, `get_recent_media`, `get_account_insights`, `get_top_content`, `get_content_performance`. `backend/trends/packet.py` calls those tools for the authenticated tenant and normalizes `trend_context` before `DeepSeekTrendAnalyst` sees it.
+
+The packet includes `captured_at` as each insight's `period_end`. A metric with `status=unavailable` becomes a data gap. Its value is not copied. Comparison sentences from the sample are `instagram_inferences`. They are **INFERRED**. A returned count or a Graph metric value is **OBSERVED**. A creative action is **RECOMMENDED** and is not a measured fact.
+
+The tools do not publish. A disconnected account, expired token, missing permission, empty sample, omitted metric, timeout, or rate limit returns `status=unavailable` (or a gap on the packet) and does not raise out of the trend scheduler.

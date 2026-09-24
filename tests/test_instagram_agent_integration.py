@@ -529,7 +529,9 @@ def test_user_cannot_read_another_users_task(tmp_settings: Settings, tmp_path: P
             assert hidden.status_code == 404
 
 
-def test_legacy_publish_endpoint_still_works_without_user(tmp_settings: Settings, tmp_path: Path) -> None:
+def test_publish_without_connected_account_does_not_use_environment_token(
+    tmp_settings: Settings, tmp_path: Path
+) -> None:
     app = create_app(tmp_settings, instagram_client=DummyInstagramClient())
     image = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
@@ -542,8 +544,10 @@ def test_legacy_publish_endpoint_still_works_without_user(tmp_settings: Settings
                 files={"image": ("photo.jpg", handle, "image/jpeg")},
                 headers=headers,
             )
-    assert response.status_code == 200
-    assert response.json()["instagram_media_id"] == "media-1"
+    assert response.status_code == 409
+    body = response.json()
+    assert body["error"]["code"] == "INSTAGRAM_NOT_CONNECTED"
+    assert tmp_settings.meta_access_token not in response.text
 
 
 def test_content_agent_and_scheduler_must_not_call_instagram_directly() -> None:

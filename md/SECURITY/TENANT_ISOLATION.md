@@ -28,6 +28,8 @@ Asset tools raise `ASSET_ACCESS_DENIED` when the id exists for a different user.
 
 `tests/test_auth.py`, `tests/test_database.py`, `tests/test_mcp.py`, `tests/test_generation_api.py`, `tests/test_brand_assets.py`.
 
-## Known exception
+## Instagram publishing
 
-`META_ACCESS_TOKEN` plus `INSTAGRAM_ACCOUNT_ID` can publish without a per-user row. That path is not isolated per tenant. See [Security](SECURITY.md).
+Each publish resolves `instagram_accounts` for the authenticated `user_id` only. The decrypted token and Instagram user id from that row are what the agent sends to Graph. A requested account id that belongs to someone else returns `PERMISSION_ERROR` and does not read that user's token.
+
+`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` do not publish for a user who has no connected account in production. They are not a tenant. The scheduler uses the same owned-account check and fails with `INSTAGRAM_NOT_CONNECTED` when the business has no connected account. See [Security](SECURITY.md).

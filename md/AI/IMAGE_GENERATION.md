@@ -1,15 +1,37 @@
 # Image generation
 
+No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+
 Related: [OpenAI](OPENAI.md), [Brand assets](../CONTENT/BRAND_ASSETS.md), [Products](../CONTENT/PRODUCTS.md), [Image QA](../CONTENT/IMAGE_QA.md), [Media storage](../STORAGE/MEDIA_STORAGE.md).
+
+## Asset grounding
+
+`services/asset_resolution.py` is the step between MCP and the OpenAI request.
+
+| State | Sent to OpenAI as pixels? |
+| --- | --- |
+| `AVAILABLE` | Yes. The file bytes go on `ImageRequest.company_logo`, `product_image`, or `reference_images`, and the edit API receives `(filename, bytes, mime)` |
+| `MISSING` | No. Generation continues from the text plan |
+| `INVALID` | No |
+| `UNAUTHORIZED` | No. The file is not read |
+| `DELETED` | No |
+
+When a logo or product image is `AVAILABLE`, the pipeline does not stop at a prompt line such as "Use the company logo". The edit call gets the file. Role notes in the prompt name the reference; they do not replace it.
+
+When the logo is `MISSING`, no logo is drawn or described as if a file had been supplied. When the product image is `MISSING`, the prompt keeps the product name from the plan and no product photo is invented.
+
+`ContentOrchestrator` (manual) and `ContentAgent` (scheduler, including daily automation) both use this resolver. A logo is not required for the process to start.
 
 Image generation is OpenAI-only. DeepSeek does not implement an image API in this repository.
 
 ## Factory
 
-`ai/image_generator.py` `get_image_generation_provider`:
+`ai/image_generator.py`:
 
-- `IMAGE_PROVIDER` empty or `openai` → `OpenAIImageGenerationProvider`
-- any other name → configuration error
+- `get_image_generation_provider`: `IMAGE_PROVIDER=openai` → `OpenAIImageGenerationProvider`. `mock` → `MockImageGenerationProvider`. Any other name, including `deepseek`, raises `OPENAI_CONFIGURATION_ERROR`. Construction does not require `OPENAI_API_KEY`.
+- `select_image_provider`: used at startup. OpenAI when `IMAGE_PROVIDER=openai` and a key plus image model are set. Otherwise `MockImageGenerationProvider`, including when the key is missing. Startup does not crash and does not ask DeepSeek for pixels.
+
+Live credentials are optional until image generation is requested. A missing key on `OpenAIImageGenerationProvider.generate` returns `OPENAI_CONFIGURATION_ERROR`.
 
 `backend/ai/image/factory.py` `get_openai_image_provider` / `create_image_provider` returns `OpenAIImageProvider` for the edit path. The module docstring states it is not an Instagram tool and cannot publish.
 

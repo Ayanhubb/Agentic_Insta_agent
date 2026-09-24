@@ -46,6 +46,10 @@ class Settings(BaseModel):
     instagram_access_token: str | None = None
     instagram_account_id: str = ""
     instagram_ig_user_id: str | None = None
+    # Production publishing never reads the process Meta token. The legacy
+    # single-account path requires both a development APP_ENV and this flag.
+    app_env: str = "production"
+    instagram_legacy_env_fallback: bool = False
     meta_graph_api_base_url: str = "https://graph.facebook.com"
     instagram_graph_base_url: str | None = None
     meta_api_version: str = "v26.0"
@@ -91,7 +95,7 @@ class Settings(BaseModel):
     strict_graph_hosts: bool = True
 
     openai_api_key: str = ""
-    llm_provider: str = "openai"
+    llm_provider: str = "deepseek"
     llm_model: str = ""
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-flash"
@@ -172,6 +176,20 @@ class Settings(BaseModel):
     @property
     def credentials_configured(self) -> bool:
         return bool(self.meta_access_token.strip() and self.instagram_account_id.strip())
+
+    def legacy_environment_credentials_allowed(self) -> bool:
+        """Single-account development path. Never true for production or staging.
+
+        `META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are ignored unless
+        `INSTAGRAM_LEGACY_ENV_FALLBACK` is set and `APP_ENV` is development,
+        dev, or local. Unset `APP_ENV` is production.
+        """
+        if not self.instagram_legacy_env_fallback or not self.credentials_configured:
+            return False
+        env = (self.app_env or "").strip().lower()
+        if env in {"production", "prod", "staging"}:
+            return False
+        return env in {"development", "dev", "local"}
 
     @property
     def openai_configured(self) -> bool:
@@ -275,6 +293,8 @@ class Settings(BaseModel):
             or _optional_env("INSTAGRAM_ACCESS_TOKEN"),
             instagram_account_id=_optional_env("INSTAGRAM_ACCOUNT_ID")
             or _optional_env("INSTAGRAM_IG_USER_ID"),
+            app_env=_optional_env("APP_ENV") or "production",
+            instagram_legacy_env_fallback=_bool_env("INSTAGRAM_LEGACY_ENV_FALLBACK", False),
             meta_graph_api_base_url=_optional_env("META_GRAPH_API_BASE_URL")
             or _optional_env("INSTAGRAM_GRAPH_BASE_URL")
             or "https://graph.facebook.com",
@@ -298,7 +318,7 @@ class Settings(BaseModel):
             media_ready_timeout_seconds=_float_env("MEDIA_READY_TIMEOUT_SECONDS", 60.0),
             media_poll_interval_seconds=_float_env("MEDIA_POLL_INTERVAL_SECONDS", 2.0),
             openai_api_key=_optional_env("OPENAI_API_KEY"),
-            llm_provider=_optional_env("LLM_PROVIDER") or "openai",
+            llm_provider=_optional_env("LLM_PROVIDER") or "deepseek",
             llm_model=_optional_env("LLM_MODEL"),
             deepseek_api_key=_optional_env("DEEPSEEK_API_KEY"),
             deepseek_model=_optional_env("DEEPSEEK_MODEL") or "deepseek-flash",

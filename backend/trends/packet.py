@@ -14,6 +14,7 @@ from backend.mcp.errors import MCPError
 from backend.mcp.tenant_isolation import TenantContext
 from backend.trends.research import region_code
 from backend.trends.schemas import (
+    DERIVED_ACCOUNT_METRICS,
     INSUFFICIENT_HISTORY,
     RELIABLE_COMPARISON_POSTS,
     AccountInsight,
@@ -107,9 +108,10 @@ class TrendIntelligence:
 
     async def analyze(self, tenant: TenantContext) -> TrendBrief:
         if self._analyst is None:
+            from ai.llm_client import get_llm_provider
             from backend.trends.analyst import DeepSeekTrendAnalyst
 
-            self._analyst = DeepSeekTrendAnalyst(self._settings)
+            self._analyst = DeepSeekTrendAnalyst(self._settings, provider=get_llm_provider(self._settings))
         readings = await collect_mcp_evidence(self._client, tenant)
         request = build_trend_request(
             user_id=tenant.tenant_id,
@@ -143,7 +145,7 @@ async def collect_mcp_evidence(client: Any, tenant: TenantContext) -> dict[str, 
     account = await call("get_account_summary")
     media = await call("get_recent_media", {"limit": _READ_LIMIT})
     insights = await call("get_account_insights")
-    top = await call("get_top_content", {"limit": _READ_LIMIT})
+    top = await call("get_top_content")
     performance = await call("get_content_performance")
     trends = await call("get_current_trends", {"limit": _READ_LIMIT})
     retail = await call("get_current_trends", {"industry": "retail", "limit": _READ_LIMIT})
@@ -224,6 +226,7 @@ def build_trend_request(
         brand_guidelines=guidelines,
         festival=festival,
         historical_performance=HistoricalPerformance(points=points),
+        instagram_inferences=_instagram_inferences(readings),
         coverage=coverage,
         required_gaps=gaps,
     )
@@ -398,11 +401,59 @@ def _evidence(obs_id: str, row: dict[str, Any], observed: datetime) -> list[Tren
     return pieces
 
 
+_INSTAGRAM_READS = ("account", "media", "insights", "top", "performance")
+
+
+def _instagram_contexts(readings: dict[str, Any]) -> list[dict[str, Any]]:
+    """Live MCP trend_context payloads, plus the older intelligence fixture shape."""
+    found: list[dict[str, Any]] = []
+    for key in _INSTAGRAM_READS:
+        payload = readings.get(key)
+        if not isinstance(payload, dict):
+            continue
+        for container in ("trend_context", "intelligence"):
+            body = payload.get(container)
+            if isinstance(body, dict) and body not in found:
+                found.append(body)
+    return found
+
+
+def _instagram_failures(readings: dict[str, Any]) -> list[str]:
+    gaps: list[str] = []
+    seen: set[str] = set()
+    for key in _INSTAGRAM_READS:
+        payload = readings.get(key)
+        if not isinstance(payload, dict):
+            continue
+        failed = payload.get("found") is False or payload.get("status") == "unavailable"
+        if not failed:
+            continue
+        reason = _blank(payload.get("reason")) or "unavailable"
+        metric = _blank(payload.get("metric")) or key
+        text = f"Instagram {metric} is unavailable ({reason})."
+        if text not in seen:
+            seen.add(text)
+            gaps.append(text)
+    return gaps
+
+
+def _metric_value(item: dict[str, Any]) -> str | int | float | None:
+    if item.get("status") == "unavailable":
+        return None
+    if item.get("status") not in {None, "available"}:
+        return None
+    value = item.get("value")
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
 def _sample(readings: dict[str, Any]) -> int | None:
-    account = readings.get("account") or {}
-    intelligence = account.get("intelligence") if isinstance(account.get("intelligence"), dict) else {}
-    if isinstance(intelligence.get("sample_size"), int):
-        return intelligence["sample_size"]
+    for context in _instagram_contexts(readings):
+        if isinstance(context.get("sample_size"), int) and not isinstance(context.get("sample_size"), bool):
+            return context["sample_size"]
     media = readings.get("media") or {}
     rows = media.get("media") if isinstance(media.get("media"), list) else []
     if rows:
@@ -423,41 +474,122 @@ def _stored_insights(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _account_insights(readings: dict[str, Any], sample: int | None) -> list[AccountInsight]:
     items: list[AccountInsight] = []
-    account = readings.get("account") or {}
-    intelligence = account.get("intelligence") if isinstance(account.get("intelligence"), dict) else {}
-    captured = _parse_dt(intelligence.get("captured_at"))
-    for metric in intelligence.get("metrics") or []:
-        if not isinstance(metric, dict):
-            continue
-        name = _blank(metric.get("metric"))
-        if not name or metric.get("status") != "available" or metric.get("value") is None:
-            continue
-        value = metric["value"]
-        items.append(
-            AccountInsight(
-                id=f"metric-{name}",
-                metric=name,
-                value=value,
-                statement=f"{name} is {value}.",
-                period_end=captured,
-                sample_size=sample,
+    seen_values: set[tuple[str, str]] = set()
+    seen_ids: set[str] = set()
+    for context in _instagram_contexts(readings):
+        captured = _parse_dt(context.get("captured_at"))
+        context_sample = context.get("sample_size")
+        if not isinstance(context_sample, int) or isinstance(context_sample, bool):
+            context_sample = sample
+        for metric in context.get("metrics") or []:
+            if not isinstance(metric, dict):
+                continue
+            name = _blank(metric.get("metric"))
+            value = _metric_value(metric)
+            if not name or value is None:
+                continue
+            identity = (name, str(value))
+            if identity in seen_values:
+                continue
+            seen_values.add(identity)
+            insight_id = f"ig:{name}"
+            if insight_id in seen_ids:
+                insight_id = f"{insight_id}:{len(seen_ids)}"
+            seen_ids.add(insight_id)
+            kind = "INFERRED" if name in DERIVED_ACCOUNT_METRICS else "OBSERVED"
+            statement = (
+                f"The sample interpretation for {name} is {value}."
+                if kind == "INFERRED"
+                else f"The authorized Instagram sample recorded {name} as {value}."
             )
-        )
+            items.append(
+                AccountInsight(
+                    id=insight_id,
+                    metric=name,
+                    value=value,
+                    statement=statement,
+                    period_end=captured,
+                    sample_size=context_sample,
+                    epistemic_status=kind,
+                )
+            )
     published = _stored_insights(readings.get("insights") or {}).get("published")
-    if not isinstance(published, int):
+    if not isinstance(published, int) or isinstance(published, bool):
         performance = readings.get("performance") or {}
         published = performance.get("published") if isinstance(performance.get("published"), int) else None
-    if isinstance(published, int) and not any(item.metric == "published" for item in items):
-        items.append(
+    if isinstance(published, int) and not isinstance(published, bool) and not any(item.metric == "published" for item in items):
+        items.insert(
+            0,
             AccountInsight(
                 id="metric-published",
                 metric="published",
                 value=published,
                 statement=f"{published} posts are stored for this account.",
                 sample_size=sample if sample is not None else published,
-            )
+                epistemic_status="OBSERVED",
+            ),
+        )
+    elif isinstance(sample, int) and not any(item.metric in {"published", "sample_size"} for item in items):
+        captured = None
+        for context in _instagram_contexts(readings):
+            captured = _parse_dt(context.get("captured_at")) or captured
+        items.insert(
+            0,
+            AccountInsight(
+                id="metric-sample-size",
+                metric="sample_size",
+                value=sample,
+                statement=f"{sample} posts were returned in the authorized Instagram sample.",
+                period_end=captured,
+                sample_size=sample,
+                epistemic_status="OBSERVED",
+            ),
         )
     return items
+
+
+def _instagram_inferences(readings: dict[str, Any]) -> list[str]:
+    notes: list[str] = []
+    seen: set[str] = set()
+    for context in _instagram_contexts(readings):
+        for item in context.get("observations") or []:
+            text = _blank(item)
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            notes.append(text)
+    return notes
+
+
+def instagram_evidence(performance: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize one account-performance payload for the scheduler's DeepSeek request.
+
+    Unavailable metrics stay out of the returned points. Comparison notes are
+    inferences, not observed facts.
+    """
+    if not isinstance(performance, dict):
+        return {"inferences": [], "points": []}
+    readings = {"account": {"trend_context": performance}}
+    return {
+        "inferences": _instagram_inferences(readings),
+        "points": _history(readings),
+    }
+
+
+def _instagram_metric_gaps(readings: dict[str, Any]) -> list[str]:
+    gaps: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for context in _instagram_contexts(readings):
+        for item in context.get("metrics") or []:
+            if not isinstance(item, dict) or item.get("status") != "unavailable":
+                continue
+            name = _blank(item.get("metric"))
+            reason = _blank(item.get("reason")) or "unavailable"
+            if not name or (name, reason) in seen:
+                continue
+            seen.add((name, reason))
+            gaps.append(f"Instagram metric {name} is unavailable ({reason}).")
+    return gaps
 
 
 def _history(readings: dict[str, Any]) -> list[PerformancePoint]:
@@ -491,13 +623,66 @@ def _history(readings: dict[str, Any]) -> list[PerformancePoint]:
         if not label or not isinstance(count, int):
             continue
         points.append(
-            PerformancePoint(
-                id=f"perf-{label}",
-                label=label,
-                metric="published",
-                value=count,
+                PerformancePoint(
+                    id=f"perf-{label}",
+                    label=label,
+                    metric="published",
+                    value=count,
+                )
             )
-        )
+    seen_ids = {item.id for item in points}
+    for context in _instagram_contexts(readings):
+        captured = _parse_dt(context.get("captured_at"))
+        for bucket in ("top_content", "low_content"):
+            for item in context.get(bucket) or []:
+                if not isinstance(item, dict):
+                    continue
+                media_id = _blank(item.get("instagram_media_id") or item.get("id"))
+                if not media_id or media_id in seen_ids:
+                    continue
+                seen_ids.add(media_id)
+                label = _blank(item.get("media_type")) or "post"
+                engagement = item.get("engagement")
+                recorded = _parse_dt(item.get("published_at")) or captured
+                if isinstance(engagement, int) and not isinstance(engagement, bool):
+                    points.append(
+                        PerformancePoint(
+                            id=media_id,
+                            label=label,
+                            metric="engagement",
+                            value=engagement,
+                            recorded_at=recorded,
+                        )
+                    )
+                else:
+                    points.append(
+                        PerformancePoint(
+                            id=media_id,
+                            label=label,
+                            metric="stored_post",
+                            value=label,
+                            recorded_at=recorded,
+                        )
+                    )
+        mix = context.get("content_mix")
+        if not isinstance(mix, dict):
+            continue
+        for label, count in mix.items():
+            if isinstance(count, bool) or not isinstance(count, int):
+                continue
+            point_id = f"mix-{label}"
+            if point_id in seen_ids:
+                continue
+            seen_ids.add(point_id)
+            points.append(
+                PerformancePoint(
+                    id=point_id,
+                    label=str(label),
+                    metric="published",
+                    value=count,
+                    recorded_at=captured,
+                )
+            )
     return points
 
 
@@ -511,18 +696,21 @@ def _coverage(
     readings: dict[str, Any],
 ) -> EvidenceCoverage:
     industries = {(item.industry or "").casefold() for item in observations}
-    engagement = False
-    account = readings.get("account") or {}
-    intelligence = account.get("intelligence") if isinstance(account.get("intelligence"), dict) else {}
-    for metric in intelligence.get("metrics") or []:
-        if not isinstance(metric, dict):
-            continue
-        name = str(metric.get("metric") or "")
-        if "engagement" in name and metric.get("status") == "available" and metric.get("value") is not None:
-            engagement = True
+    engagement = any(item.metric == "engagement" for item in points)
+    if not engagement:
+        for context in _instagram_contexts(readings):
+            for metric in context.get("metrics") or []:
+                if not isinstance(metric, dict):
+                    continue
+                name = str(metric.get("metric") or "")
+                if "engagement" in name and _metric_value(metric) is not None:
+                    engagement = True
+                    break
+            if engagement:
+                break
     return EvidenceCoverage(
         recent_account_performance=bool(insights),
-        content_history=any(item.metric == "stored_post" for item in points),
+        content_history=any(item.metric in {"stored_post", "engagement"} for item in points),
         engagement_metrics=engagement,
         retail_trends="retail" in industries,
         food_and_beverage_trends=bool(industries & _FNB),
@@ -545,6 +733,8 @@ def _gaps(
     stale_excluded: bool,
 ) -> list[str]:
     gaps = [str(item) for item in readings.get("read_errors") or []]
+    gaps.extend(_instagram_failures(readings))
+    gaps.extend(_instagram_metric_gaps(readings))
     if sample is not None and sample < RELIABLE_COMPARISON_POSTS:
         gaps.append(INSUFFICIENT_HISTORY)
     if not insights and not points:

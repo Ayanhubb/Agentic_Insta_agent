@@ -20,11 +20,14 @@ Business / product / brand context (owner-scoped tables)
 Agents + in-process MCP (backend/mcp/)
    ↓
 Creative plan
-   studio: DeepSeekCreativeClient if DEEPSEEK_API_KEY is set,
+   LLM_PROVIDER=deepseek (default)
+   studio: DeepSeekCreativeClient when DEEPSEEK_API_KEY is set,
            otherwise GroundedCreativeModel (no network)
-   scheduler: LLM_PROVIDER (default openai) via ContentAgent
+   scheduler: that same reasoning provider via ContentAgent
    ↓
-OpenAI image generation (or MockImageGenerationProvider)
+IMAGE_PROVIDER=openai
+   OpenAI image generation when OPENAI_API_KEY and an image model are set,
+   otherwise MockImageGenerationProvider
    ↓
 DeepSeek Vision QA when a vision client is wired;
 otherwise a structural image check
@@ -36,7 +39,7 @@ Instagram Agent (six tools)
 Meta Graph API
 ```
 
-That diagram is the implemented shape, with two planner paths. It is not a single DeepSeek-only reasoning pipeline. See [AI architecture](AI_ARCHITECTURE.md).
+DeepSeek is the reasoning provider. OpenAI is the image provider. An OpenAI key does not take over planning. Live keys are optional until a real DeepSeek or OpenAI call is requested; startup logs `LLM provider: deepseek` and `Image provider: openai` and does not crash when those keys are empty. See [AI architecture](AI_ARCHITECTURE.md).
 
 ## Publishing boundary
 
@@ -52,6 +55,18 @@ That diagram is the implemented shape, with two planner paths. It is not a singl
 
 `enqueue_instagram_publication` in `agent/instagram_tasks.py` is the handoff into the agent. It does not call Graph itself.
 
+Publishing credentials are the signed-in user's encrypted Instagram token:
+
+```text
+Authenticated user
+  → connected Instagram account (instagram_accounts)
+  → encrypted token decrypted for that request only
+  → Instagram Agent
+  → Meta Graph API
+```
+
+`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are not that path. Production, staging, and the default (`APP_ENV` unset) never use them to publish. A development-only compatibility path exists when `APP_ENV` is `development`, `dev`, or `local` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. The scheduler does not use it. Automatic publishing fails with `INSTAGRAM_NOT_CONNECTED` when the business has no connected account. The token is not returned through the API, MCP, model providers, React, or logs.
+
 Only a verified `PUBLISHED` post with an Instagram media id counts. Ambiguous publish results set `skip_publish` and are not retried as a second publish (`agent/recovery.py`).
 
 Formats the agent cannot publish (carousel, reel, story) stay concept-only in `agent/opportunity_engine.py`.
@@ -61,13 +76,13 @@ Formats the agent cannot publish (carousel, reel, story) stay concept-only in `a
 `create_app` in `api/app.py`:
 
 1. Loads `Settings.from_env()`, creates the SQLAlchemy engine, calls `init_db`, bootstraps the admin user.
-2. Selects the scheduler LLM: `LLM_PROVIDER=deepseek` uses DeepSeek when the key and `DEEPSEEK_MODEL` are set; otherwise `MockLLMProvider`. Any other provider uses OpenAI when the key and `LLM_MODEL` are set; otherwise the mock.
-3. Selects images: OpenAI when `OPENAI_API_KEY` and an image model are set; otherwise `MockImageGenerationProvider`.
+2. Selects the reasoning provider from `LLM_PROVIDER` (default `deepseek`). DeepSeek is used when the key and `DEEPSEEK_MODEL` are set. A missing key uses `MockLLMProvider` and does not switch to OpenAI. `LLM_PROVIDER=openai` is an explicit opt-in.
+3. Selects images from `IMAGE_PROVIDER` (default `openai`). OpenAI is used when `OPENAI_API_KEY` and an image model are set; otherwise `MockImageGenerationProvider`. DeepSeek is not an image provider.
 4. Resolves vision through `scheduler.integrations.resolve_vision` (`ai.vision.deepseek.get_vision_provider`).
 5. Builds `CanvaAdapter`. The client passed into generation is `None` unless `CANVA_ENABLED` is true.
 6. Starts `scheduler_loop` only when `SCHEDULER_ENABLED` is true. Default interval is 60 seconds.
 
-`POST /api/v1/generation` does not use that scheduler LLM. It builds a `ContentOrchestrator` whose planner is `get_creative_model`: DeepSeek if `DEEPSEEK_API_KEY` is non-empty, otherwise `GroundedCreativeModel`.
+`POST /api/v1/generation` builds a `ContentOrchestrator` whose planner is `get_creative_model`: DeepSeek when `LLM_PROVIDER=deepseek` and `DEEPSEEK_API_KEY` is non-empty, otherwise `GroundedCreativeModel`. The scheduler `ContentAgent` and the trend stage use the reasoning provider from `select_reasoning_provider`. The trend stage does not open its own DeepSeek HTTP client. Instagram publishing stays on the Instagram Agent and Meta.
 
 ## Major packages
 

@@ -1,6 +1,8 @@
-"""Creative planner used when DeepSeek is not configured.
+"""Creative planner for the studio path.
 
-The fallback still speaks the CreativePlan schema and only restates sourced facts.
+LLM_PROVIDER=deepseek with a key uses DeepSeek. An OpenAI key does not select
+a reasoning model. Without a DeepSeek key the local planner is used so startup
+and tests do not call the network.
 """
 
 from __future__ import annotations
@@ -108,7 +110,9 @@ class GroundedCreativeModel:
 
 
 def get_creative_model(settings: Settings):
-    if settings.deepseek_api_key.strip():
+    from ai.llm_client import reasoning_provider_name
+
+    if reasoning_provider_name(settings) == "deepseek" and settings.deepseek_api_key.strip():
         from ai.llm.deepseek import DeepSeekCreativeClient
 
         return DeepSeekCreativeClient(settings)

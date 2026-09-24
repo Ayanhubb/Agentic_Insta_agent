@@ -58,6 +58,21 @@ DEFAULT_STALE_AFTER_DAYS = 14
 RELIABLE_COMPARISON_POSTS = 8
 INSUFFICIENT_HISTORY = "Insufficient historical data for a reliable performance comparison."
 
+# Computed from the returned media sample. They are not Graph metrics of the same name.
+DERIVED_ACCOUNT_METRICS = frozenset(
+    {
+        "posting_frequency",
+        "posting_consistency",
+        "content_mix",
+        "engagement_rate",
+        "average_engagement",
+        "recent_performance",
+        "product_content_performance",
+        "festival_content_performance",
+        "offer_content_performance",
+    }
+)
+
 TREND_CLASSIFICATION_METHODOLOGY = """
 Evidence strength is categorical. There is no numeric trend score.
 OBSERVED statements cite account, historical, festival, business, product, or offer records.
@@ -158,6 +173,7 @@ class AccountInsight(BaseModel):
     period_start: datetime | None = None
     period_end: datetime | None = None
     sample_size: int | None = None
+    epistemic_status: Literal["OBSERVED", "INFERRED"] = "OBSERVED"
 
     @field_validator("id", "metric", "statement")
     @classmethod
@@ -254,6 +270,7 @@ class TrendAnalysisRequest(BaseModel):
     brand_guidelines: list[BrandGuidelineContext] = Field(default_factory=list)
     festival: FestivalContext | None = None
     historical_performance: HistoricalPerformance = Field(default_factory=HistoricalPerformance)
+    instagram_inferences: list[str] = Field(default_factory=list)
     creative_assets: list[CreativeAsset] = Field(default_factory=list)
     stale_after_days: int = DEFAULT_STALE_AFTER_DAYS
     coverage: EvidenceCoverage = Field(default_factory=EvidenceCoverage)

@@ -15,6 +15,8 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from models.content import ContentMode, ContentStrategyRequest, FestivalContext
+from models.errors import AppError, ErrorCode
+from services.publication import publication_block
 from scheduler.approval_policy import ApprovalDecision, decide_approval
 from scheduler.image_qa import ImageQAService
 from services.metrics import PipelineMetrics, pipeline_metrics
@@ -185,6 +187,22 @@ class CampaignPipeline:
 
         log.record(PipelineEventName.APPROVAL_GRANTED.value, status="success", approval_status="APPROVED")
         self._metrics.increment("approval_granted")
+        account = kwargs.get("account")
+        owner = getattr(account, "user_id", None) if account is not None else None
+        if owner is not None and owner != user_id:
+            raise AppError(
+                ErrorCode.PERMISSION_ERROR,
+                "You can only publish to your connected Instagram account.",
+                http_status=403,
+            )
+        block = publication_block(account)
+        if block is not None:
+            code, message = block
+            raise AppError(
+                code,
+                message,
+                http_status=401 if code == ErrorCode.AUTHENTICATION_ERROR else 409,
+            )
         self._session.commit()
         log.record(PipelineEventName.INSTAGRAM_PUBLISH_STARTED.value, status="success")
         caption = getattr(plan, "caption_hint", None) or getattr(plan, "caption", None)
@@ -279,7 +297,7 @@ class CampaignPipeline:
 
     async def _optional_canva(self, log: TaskEventLog, result: Any, user_id: str) -> None:
         action = getattr(getattr(result, "plan", None), "canva_action", None)
-        if not action or self._canva is None:
+        if self._canva is None or not str(action or "").strip() or str(action).strip().lower() == "none":
             return
         try:
             await _call_optional(

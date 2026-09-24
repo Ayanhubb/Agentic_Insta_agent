@@ -19,7 +19,7 @@ from db.repositories import (
     TaskRepository,
     UserRepository,
 )
-from tests.helpers import DummyInstagramClient, auth_client_headers, write_jpeg
+from tests.helpers import DummyInstagramClient, auth_client_headers, connect_instagram, write_jpeg
 
 
 FORBIDDEN_KEYS = {
@@ -111,6 +111,7 @@ def test_protected_route_requires_auth(tmp_settings: Settings, tmp_path: Path) -
         headers = auth_client_headers(client)
         me = client.get("/api/v1/auth/me", headers=headers)
         assert me.status_code == 200
+        connect_instagram(client, headers)
         with image_path.open("rb") as handle:
             published = client.post(
                 "/api/v1/instagram/publish?wait=true",
@@ -190,6 +191,7 @@ def test_forced_password_change(tmp_settings: Settings, tmp_path: Path) -> None:
         assert changed.status_code == 200
         assert changed.json()["user"]["must_change_password"] is False
         fresh = {"Authorization": f"Bearer {changed.json()['access_token']}"}
+        connect_instagram(client, fresh)
         with image_path.open("rb") as handle:
             allowed = client.post(
                 "/api/v1/instagram/publish?wait=true",
@@ -239,6 +241,7 @@ def test_user_isolation(tmp_settings: Settings, tmp_path: Path) -> None:
     image_path = write_jpeg(tmp_path / "photo.jpg")
     with TestClient(app) as client:
         headers_a = auth_client_headers(client, email="a@example.com", password="password12")
+        connect_instagram(client, headers_a, account_id="ig-a", token="token-a")
         with image_path.open("rb") as handle:
             published = client.post(
                 "/api/v1/instagram/publish?wait=true",

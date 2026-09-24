@@ -88,7 +88,7 @@ class RecoveryPolicy:
         if code in CONFIGURATION_FAILURE_CODES:
             return RecoveryDecision(
                 Decision.FAIL,
-                reason="configuration or authorization error; check META_ACCESS_TOKEN and INSTAGRAM_ACCOUNT_ID",
+                reason="configuration or authorization error; connect the business Instagram account",
             )
 
         if observation.tool == "publish_instagram_media" and certainty == OperationCertainty.UNKNOWN:

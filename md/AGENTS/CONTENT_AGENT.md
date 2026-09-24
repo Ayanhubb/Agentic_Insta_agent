@@ -13,8 +13,11 @@ Flow:
 1. Require an authenticated `user_id`.
 2. Call MCP: `get_business_profile` (required), products, offers, brand, festival, and Canva only when the request asks for it.
 3. Ask the creative model for a `CreativePlan`.
-4. Generate an image, then run QA.
-5. Store the image and return `published=False` with `handoff_to_instagram=False`.
+4. If `canva_action` is `apply_template` or `use_reference`, export a Canva design for that user. Otherwise generate the image with OpenAI.
+5. Run the same vision QA on those bytes, then store the image as `PENDING_APPROVAL`.
+6. Return `published=False` with `handoff_to_instagram=False`.
+
+A request that asks for Canva when the user is not connected returns `CANVA_NOT_CONNECTED` and does not call OpenAI. The scheduler `ContentAgent` uses the same choice when its plan sets `canva_action`. Canva never publishes.
 
 The orchestrator does not call the Instagram Agent.
 
@@ -22,14 +25,16 @@ Plan retries are capped at 3 (`PLAN_ATTEMPT_CAP`). QA retries are capped at 3. C
 
 Creative model (`ai/creative_model.py`):
 
-- `DEEPSEEK_API_KEY` set → `DeepSeekCreativeClient`
+- `LLM_PROVIDER=deepseek` and `DEEPSEEK_API_KEY` set → `DeepSeekCreativeClient`
 - otherwise → `GroundedCreativeModel`
+
+An OpenAI key does not select the studio planner. A missing DeepSeek key does not crash startup.
 
 ## `ContentAgent` (`agent/content_agent.py`)
 
 Used by the daily and festival schedulers (`scheduler/scheduler.py`).
 
-`create_plan` / `run` call `LLMProvider.generate_content_plan`. The provider is `OpenAILLMProvider` or `DeepSeekLLMProvider` according to `LLM_PROVIDER`, or `MockLLMProvider` when that provider is not configured (`api/app.py`).
+`create_plan` / `run` call `LLMProvider.generate_content_plan`. The scheduler passes `select_reasoning_provider`: DeepSeek when `LLM_PROVIDER=deepseek` and the key is set, `MockLLMProvider` when that key is missing, and `OpenAILLMProvider` only when `LLM_PROVIDER=openai`.
 
 `DiversityPolicy` rejects repeated themes inside a session. Plan attempts default to 3.
 
