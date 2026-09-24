@@ -5,9 +5,10 @@ The Instagram Agent is the **only publication authority** in this system. The LL
 ## Authority
 
 ```text
-React / API / Content Agent / Scheduler
+React / API / Content Agent / Scheduler pipeline
         │
         │  create Agent task only
+        │  MCP, DeepSeek, OpenAI, and Canva stop before this line
         ▼
 PublicationGateway  (services/publication.py)
         │
@@ -15,7 +16,7 @@ PublicationGateway  (services/publication.py)
 Instagram Agent
         │
         ▼
-Allowlisted tools (never rewritten for this integration)
+Allowlisted tools (validate → prepare → upload → create → publish → verify)
         │
         ▼
 Meta Graph API
@@ -62,9 +63,9 @@ Do not use one global `META_ACCESS_TOKEN` for every authenticated user.
 
 | Caller | Credentials |
 | --- | --- |
-| Unauthenticated V1 `POST /instagram/publish` | Environment token (backward compatible) |
-| Authenticated user | That user's connected Instagram professional account |
-| Daily / festival automation | The enabled account belonging to that user |
+| `POST /instagram/publish` | Logged-in user (`require_password_ok`). Uses that user's connected account |
+| Generated approve / daily / festival | The enabled account belonging to that user |
+| Env `META_ACCESS_TOKEN` | Fallback only when `allow_environment_fallback=True` |
 
 Tokens are encrypted at rest with `db.crypto.encrypt_token`. They are never:
 
@@ -156,15 +157,17 @@ Every account, post, task, campaign, and statistic query is scoped by `user_id`.
 Scheduler
   → check automation / today's verified daily post
   → if already PUBLISHED (or PUBLISHING / AMBIGUOUS): SKIP
-  → Content Strategy Agent (plan + image)
-  → enqueue_instagram_publication(...)
+  → CampaignPipeline
+       MCP context → Content Agent (plan + image) → optional Canva
+       → image QA → decide_approval
+  → only if every gate passes: PublicationService.publish_generated_image
   → Instagram Agent (tools + recovery)
   → verify
   → persist PUBLISHED
-  → increment counts
+  → increment counts on the scheduled local date
 ```
 
-The scheduler must not construct `InstagramGraphClient` or call `media_publish`.
+The scheduler must not construct `InstagramGraphClient` or call `media_publish`. A failed QA result is stored on `generated_images.qa_status` and does not enqueue this agent. A publish timeout uses `VERIFY_FIRST` and does not call `publish_instagram_media` again.
 
 ## Failure mapping
 

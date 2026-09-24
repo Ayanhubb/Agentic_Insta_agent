@@ -1,21 +1,27 @@
 # AI Architecture
 
-Backend-only OpenAI integration for Instagram Agentic AI.
+Backend-only model calls for Instagram Agentic AI.
 
-The LLM supplies intelligence. The FastAPI backend keeps deterministic control.
-The existing Instagram Agent remains the only publisher.
-
-## OpenAI integration
-
-The official OpenAI Python SDK runs inside the FastAPI process.
+DeepSeek plans and reviews. OpenAI generates still images. FastAPI keeps deterministic control. The Instagram Agent remains the only publisher. MCP, DeepSeek, OpenAI, and Canva never call Meta.
 
 ```text
 React
   → FastAPI
     → Content Agent
-      → LLMProvider
-        → OpenAI chat completions
+      → MCP context (festival, business, brand, product — parallel, then details)
+        → DeepSeek creative plan     (or OpenAI chat, or mock)
+          → OpenAI image              (or mock)
+            → DeepSeek Vision QA      (or structural QA when unconfigured)
+              → Approval
+                → Instagram Agent
+                  → Meta
 ```
+
+Startup does not call DeepSeek or OpenAI. A missing key selects mocks. Vision stays off until `DEEPSEEK_API_KEY` is set. Instagram publishing still works without either provider.
+
+## OpenAI integration
+
+The official OpenAI Python SDK runs inside the FastAPI process. It is the image provider. It is also the chat provider when `LLM_PROVIDER=openai`.
 
 ```text
 Content Agent
@@ -36,18 +42,22 @@ Model names are configuration, not code constants. Providers read
 
 ```text
 ai/
-  __init__.py
-  llm_client.py              LLMProvider + get_llm_provider()
+  llm_client.py              LLMProvider + get_llm_provider()  openai | deepseek
+  llm/deepseek.py            DeepSeekLLMProvider
+  vision/deepseek.py         DeepSeekVisionProvider
   openai_llm.py              OpenAILLMProvider
-  image_generator.py         ImageGenerationProvider + storage contract
+  image_generator.py         ImageGenerationProvider
   openai_image_generator.py  OpenAIImageGenerationProvider
-  schemas.py                 ContentPlan, GeneratedImage, request models
+  mocks.py                   used when a key is missing
+backend/ai/image/            OpenAI image adapter beside the ai/ generator
+backend/mcp/                 in-process context; not a model
 ```
 
-| Interface | OpenAI implementation | Factory |
+| Interface | Implementation | Factory |
 | --- | --- | --- |
-| `LLMProvider` | `OpenAILLMProvider` | `get_llm_provider(settings)` |
+| `LLMProvider` | `DeepSeekLLMProvider` or `OpenAILLMProvider` | `get_llm_provider(settings)` |
 | `ImageGenerationProvider` | `OpenAIImageGenerationProvider` | `get_image_generation_provider(settings)` |
+| Vision | `DeepSeekVisionProvider` or `None` | `get_vision_provider(settings)` |
 
 The Content Agent and FastAPI depend on the interfaces. They must not import
 OpenAI types in route handlers. A non-OpenAI implementation can be substituted
@@ -58,9 +68,7 @@ in tests or later providers without changing agent code.
 - `app.state.llm_provider`
 - `app.state.image_provider`
 
-Startup does not call OpenAI. A missing key only fails when generation is
-requested (`OPENAI_CONFIGURATION_ERROR`). Instagram publishing still works
-without OpenAI.
+`create_app()` selects DeepSeek when `LLM_PROVIDER=deepseek` and the key and model are set. Otherwise it uses OpenAI when that key and model are set, then mocks. Image generation is live only when an OpenAI key and image model are set.
 
 ## Prompt flow
 
@@ -135,12 +143,14 @@ From `.env` / `.env.example`:
 | Variable | Purpose |
 | --- | --- |
 | `OPENAI_API_KEY` | Backend secret for the official SDK |
+| `OPENAI_IMAGE_MODEL` | Image model. Default `gpt-image-2.5-sunburst` |
 | `DEEPSEEK_API_KEY` | Backend secret for the official DeepSeek API |
 | `DEEPSEEK_MODEL` | DeepSeek chat and vision model (default `deepseek-flash`) |
-| `LLM_PROVIDER` | Provider id (`openai` or `deepseek`) |
-| `LLM_MODEL` | Chat model name |
+| `LLM_PROVIDER` | `deepseek` or `openai` |
+| `VISION_PROVIDER` | `deepseek` |
+| `LLM_MODEL` | OpenAI chat model name |
 | `IMAGE_PROVIDER` | Image provider id (`openai`) |
-| `IMAGE_MODEL` | Image model name |
+| `IMAGE_MODEL` | Image model name; filled from `OPENAI_IMAGE_MODEL` when empty |
 | `LLM_MAX_ATTEMPTS` | Bounded LLM retries (default 3) |
 | `IMAGE_MAX_ATTEMPTS` | Bounded image retries (default 3) |
 | `IMAGE_SIZE` | Image size sent to the provider |
@@ -164,7 +174,7 @@ timeouts are retried only inside that budget.
 
 ## Testing
 
-Default `pytest` is mocked and never constructs `AsyncOpenAI`.
+Default `pytest` is mocked. It never constructs `AsyncOpenAI`. It blocks `DeepSeekTransport.chat` and does not replace the shared `httpx.AsyncClient`.
 
 ```bash
 pytest
@@ -263,8 +273,14 @@ The LLM plans content. It does not:
 - bypass `ToolRegistry`
 - publish content
 
-The Content Agent (separate work) should call `LLMProvider` then
-`ImageGenerationProvider`, persist the `GeneratedImage` record, and wait for
-approval or automation policy. Only then may the Instagram Agent publish.
+The Content Agent calls `LLMProvider` then `ImageGenerationProvider` and persists the `GeneratedImage`. `published` on that result is always false.
 
-This layer does not implement the scheduler or React.
+Scheduled runs continue in `scheduler/pipeline.py`: optional Canva, then image QA, then `decide_approval`. Failed QA, a malformed provider result, a missing required logo, an unverifiable offer, an invalid festival date, or an ownership failure holds the post. Only a clear approval calls `PublicationService`, which enqueues the Instagram Agent.
+
+Festival dates are not asked of DeepSeek. They come from `festivals/` and `festivals/data/lunar_dates.json`.
+
+MCP context for festival, business, brand, offers, rules, and logo is gathered in parallel in `backend/mcp/context_builder.py`. Dependent lookups (festival details, a named product) run after that. Tenant id comes from the authenticated user or the scheduler, never from model output.
+
+Canva (`backend/integrations/canva/`) is optional and off unless `CANVA_ENABLED` is set. When it is off, OpenAI image generation still runs.
+
+This layer does not serve React and does not publish.

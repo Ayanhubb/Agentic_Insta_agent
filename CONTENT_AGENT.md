@@ -9,14 +9,17 @@ The existing Instagram Agent remains the only publisher. The Content Agent never
 ```text
 User / Scheduler
   → Content Agent
-    → LLM (structured JSON)
+    → LLM (DeepSeek, OpenAI, or mock; structured JSON)
       → Policy validation
-        → Diversity check
-          → Image generation
-            → Save generated image
-              → Approval decision
-                → Content task / Instagram handoff (data only)
+        → Catalog grounding (product plans name a real catalog item)
+          → Diversity check
+            → OpenAI image (or mock)
+              → Save generated image
+                → Content-agent approval flag
+                  → Instagram handoff (data only; published is always false)
 ```
+
+The scheduler does not treat that flag as permission to post. `CampaignPipeline` runs image QA and `decide_approval` after the agent returns. Failed QA cannot auto-publish. Only then may FastAPI call `PublicationService`.
 
 Publishing, if it happens later, is:
 
@@ -73,8 +76,9 @@ Rules:
 - `daily_enabled` must be true.
 - Date, weekday, Indian season, products, brand style, and recent themes are sent to the LLM.
 - Preferred content types rotate away from types used in the recent window.
-- If `auto_daily_publish` is true, the task is `AUTO_APPROVED` and `handoff.ready=true`.
+- If `auto_daily_publish` is true, the task is marked `AUTO_APPROVED` and `handoff.ready=true`. The scheduler still requires QA and the approval gates before it enqueues Instagram.
 - If `auto_daily_publish` is false, the task waits for human approval.
+- A product, promotion, or new-arrival plan with no featured name copies the first product from this user's catalog. It does not invent a product.
 - The Content Agent still does not call the Instagram Agent.
 
 ### FESTIVAL
@@ -241,13 +245,15 @@ V1 does not load embeddings. When a later agent wires an embedding model, set `e
 | --- | --- | --- |
 | USER_PROMPT | ignored | `PENDING_APPROVAL`, no handoff |
 | DAILY | `auto_daily_publish=false` | `PENDING_APPROVAL`, no handoff |
-| DAILY | `auto_daily_publish=true` | `AUTO_APPROVED`, `handoff.ready=true` |
+| DAILY | `auto_daily_publish=true` | Agent marks `AUTO_APPROVED`. Pipeline may still hold the post. |
 | FESTIVAL | `auto_festival_publish=false` | `PENDING_APPROVAL`, no handoff |
-| FESTIVAL | `auto_festival_publish=true` | `AUTO_APPROVED`, `handoff.ready=true` |
+| FESTIVAL | `auto_festival_publish=true` | Agent marks `AUTO_APPROVED`. Pipeline may still hold the post. |
 
 `ContentStrategyResult.published` is **always** `false`.
 
-`InstagramHandoff` is a data package for FastAPI / the scheduler / Agent 8:
+Scheduled auto-publish also requires, in `scheduler/approval_policy.py`: QA passed and not malformed, tenant ownership, a catalog product when the plan features one, a logo only when the plan requires one, an offer that appears in the profile, and a catalog festival date in festival mode. Human mode always stays `PENDING_APPROVAL`.
+
+`InstagramHandoff` is a data package for FastAPI and the scheduler:
 
 - `generated_image_id`
 - `image_path`
@@ -262,7 +268,7 @@ Those callers may then run `InstagramAgent.run(...)`. The Content Agent does not
 
 ## Persistence contract
 
-The agent duck-types the database layer (Agent 2) and AI providers (Agent 4):
+The agent duck-types the database layer and AI providers:
 
 **Context store (optional if the request already carries snapshots)**
 
@@ -274,12 +280,12 @@ The agent duck-types the database layer (Agent 2) and AI providers (Agent 4):
 - `save_generated_image(record)`
 - `save_content_task(task)`
 
-ORM objects with the Agent 2 field names (`business_name`, `brand_style`, `products`, `original_prompt`, `approval_status`, `source`, …) are accepted via `from_attributes`.
+ORM objects with the profile and image field names (`business_name`, `brand_style`, `products`, `original_prompt`, `approval_status`, `source`, …) are accepted via `from_attributes`.
 
 **LLM provider**
 
-Preferred method: `generate_structured(system_prompt=, user_prompt=, schema=)`.  
-Also accepted: `complete_structured`, `generate_content_plan`, `generate`, `complete`, `chat`.
+Preferred method: `generate_structured(system_prompt=, user_prompt=, schema=)` (DeepSeek).  
+Also accepted: `generate_content_plan` (OpenAI and the mock). The factory is `get_llm_provider()`. `LLM_PROVIDER=deepseek` uses DeepSeek. Missing keys use mocks.
 
 **Image provider**
 
@@ -313,8 +319,10 @@ Secrets (OpenAI keys, Meta tokens, passwords) are never sent to the LLM and neve
 - Bypass `ToolRegistry` for publishing.
 - Auto-approve user-prompt content.
 - Increment published-post counters (only verified `PUBLISHED` records count, and that is the Instagram Agent + database).
-- Run the scheduler (Agent 7).
-- Serve React (Agent 9).
+- Run the scheduler. Daily and festival ticks live in `scheduler/` and call this agent, then QA, then the publication gateway.
+- Serve React.
+- Treat DeepSeek as the source of festival dates.
+- Publish, including through Canva or MCP.
 
 ---
 
@@ -324,5 +332,7 @@ Secrets (OpenAI keys, Meta tokens, passwords) are never sent to the LLM and neve
 | --- | --- |
 | `agent/content_agent.py` | Agent, prompts, diversity, provider adapters |
 | `models/content.py` | Enums and Pydantic contracts |
+| `agent/content_orchestrator.py` | Creative workflow that queries MCP. It does not publish. |
+| `scheduler/pipeline.py` | QA and approval after this agent, then the Instagram gateway |
 | `tests/test_content_agent.py` | Mode, diversity, failure, and policy tests |
 | `CONTENT_AGENT.md` | This decision-flow document |
