@@ -11,12 +11,12 @@ Authorized Meta Graph API (services/instagram_reader.py, GET only)
         ↓
 AccountIntelligenceService (services/instagram_intelligence.py)
         ↓
-Normalized metrics and trend_context
+MCP account tools (trend_context only; no token, no publish)
         ↓
-MCP account tools and /api/v1/intelligence/*
-        ↓
-DeepSeek only later, if a trend analyst or creative model is invoked on stored context
+DeepSeek trend analysis (DeepSeekTrendAnalyst)
 ```
+
+`GET /api/v1/intelligence/*` returns the same normalized metrics to the signed-in user and does not call DeepSeek by itself. Trend analysis is the path that sends MCP context to DeepSeek. That model is **IMPLEMENTED — NOT CONFIGURED** until `DEEPSEEK_API_KEY` is set. DeepSeek does not call Meta.
 
 `AccountIntelligenceService` methods: `account`, `posts`, `insights`, `top_content`. It can persist `instagram_intelligence_records`. It does not create media or publish.
 

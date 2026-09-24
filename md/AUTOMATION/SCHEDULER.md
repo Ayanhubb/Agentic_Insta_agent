@@ -20,7 +20,7 @@ Docker Compose sets the scheduler on for the backend service. Local `.env.exampl
 content agent → optional Canva → image QA → decide_approval → PublicationService
 ```
 
-`PublicationService.publish_generated_image` runs only when `ApprovalDecision.publish` is true. That service enqueues the Instagram Agent. Content agent, Canva, DeepSeek, and OpenAI do not publish.
+`PublicationService.publish_generated_image` runs only when `ApprovalDecision.publish` is true. That service enqueues the Instagram Agent. Content planning uses DeepSeek (`LLM_PROVIDER` default `deepseek`), which is **IMPLEMENTED — NOT CONFIGURED** until `DEEPSEEK_API_KEY` is set. Images use OpenAI, also **IMPLEMENTED — NOT CONFIGURED**. Canva, when enabled, only supplies a creative export. Content agent, Canva, DeepSeek, OpenAI, and MCP do not publish. The scheduler does not use `META_ACCESS_TOKEN`.
 
 ## Approval
 

@@ -16,7 +16,7 @@ These rows are **RECOMMENDED**. They point at a `trend_id` when the scheduler sa
 4. `get_festival_opportunities` lists upcoming catalog festivals and whether this tenant has a campaign. The festival date is **OBSERVED** from the catalog. The "you have no campaign" flag is **INFERRED**.
 5. `OpportunityEngine.evaluate` ranks a `TrendBrief` into one `ContentOrchestrationRequest`. `OpportunityBridge.published` is always false.
 
-`recommend_format` marks carousel, reel, and story as not publishable by the Instagram Agent. The bridge text says the agent can publish one still image after approval.
+`recommend_format` marks carousel, reel, and story as not publishable by the Instagram Agent. The bridge text says the agent can publish one still image after approval. Opportunities do not call Meta. DeepSeek writes the brief they rank; that key is **IMPLEMENTED — NOT CONFIGURED**.
 
 Low confidence or `instagram_can_publish` false forces `auto_daily_publish` and `auto_festival_publish` off for that decision.
 

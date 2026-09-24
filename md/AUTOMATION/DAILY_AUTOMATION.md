@@ -12,7 +12,7 @@ Module: `scheduler/daily_scheduler.py`.
 
 Skip when daily is disabled, when local time is before `daily_post_time`, or when `PostRepository.has_published_daily` is already true for that user, account, and local date.
 
-Otherwise the scheduler claims `daily_post_slots` (unique per user, account, local date). A claimed slot runs `CampaignPipeline`.
+Otherwise the scheduler claims `daily_post_slots` (unique per user, account, local date). A claimed slot runs `CampaignPipeline`. The content plan is DeepSeek when the key is set, and a local or mock plan when it is not (**IMPLEMENTED — NOT CONFIGURED**). OpenAI draws the image the same way. Publish, if the approval gates pass, is the Instagram Agent only. `META_ACCESS_TOKEN` is not used.
 
 | Outcome | Slot |
 | --- | --- |

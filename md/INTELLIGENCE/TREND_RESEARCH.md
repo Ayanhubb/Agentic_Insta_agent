@@ -46,7 +46,7 @@ Routes under `/api/v1/trends` are listed in [API reference](../API/API_REFERENCE
 
 ## DeepSeek
 
-`DeepSeekTrendAnalyst.analyze` calls `DeepSeekLLMProvider.generate_structured` and validates a `TrendBrief`. It rejects briefs that invent numbers, ids, or dates not present in the packet. Retries use `llm_max_attempts` with the rejection text as feedback.
+`DeepSeekTrendAnalyst.analyze` calls `DeepSeekLLMProvider.generate_structured` and validates a `TrendBrief`. Status: **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. A live call then raises `DEEPSEEK_CONFIGURATION_ERROR`. It rejects briefs that invent numbers, ids, or dates not present in the packet. It does not browse and it does not publish. Retries use `llm_max_attempts` with the rejection text as feedback. Instagram metrics in the packet come from MCP, not from a Graph call inside DeepSeek.
 
 Optional `DeepSeekCreativeVision.describe_creative` can describe a creative asset. That description is not a trend source.
 

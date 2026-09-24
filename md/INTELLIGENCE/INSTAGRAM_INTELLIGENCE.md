@@ -5,20 +5,16 @@ Related: [Account intelligence](../AGENTS/ACCOUNT_INTELLIGENCE_AGENT.md), [Insta
 ## Flow
 
 ```text
-Connected Instagram account
+Meta Graph API (GET only, authorized account)
         ↓
-Authorized Meta Graph API (GET only)
+Instagram intelligence (GraphInstagramReader, AccountIntelligenceService)
         ↓
-InstagramIntelligenceReader
+MCP account tools (trend_context; no token; no publish)
         ↓
-AccountIntelligenceService
-        ↓
-Account metrics (available or unavailable per field)
-        ↓
-Stored instagram_intelligence_records and trend_context
-        ↓
-DeepSeek only if a later analyst or creative call is made
+DeepSeek trend analysis
 ```
+
+Direct intelligence HTTP routes return metrics without calling DeepSeek. The trend packet is the analysis path: MCP evidence, then `DeepSeekTrendAnalyst`. DeepSeek is **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. DeepSeek does not call Graph.
 
 Reader: `services/instagram_reader.py`. Service: `services/instagram_intelligence.py`. Routes: `api/intelligence_routes.py`.
 

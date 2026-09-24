@@ -2,7 +2,7 @@
 
 Related: [Schema](DATABASE_SCHEMA.md).
 
-Alembic versions live in `db/migrations/versions/`. Startup also calls `init_db`, which creates tables from `Base.metadata` for a fresh SQLite file. Apply Alembic when moving an existing database forward.
+Alembic versions live in `db/migrations/versions/`. Startup also calls `init_db`, which creates tables from `Base.metadata` for a fresh SQLite file. Apply Alembic when moving an existing database forward. These revisions do not store DeepSeek or OpenAI keys. Those keys are **IMPLEMENTED — NOT CONFIGURED** in the environment. Brand and product tables from `002` stay empty of production logos and product images until a user uploads them.
 
 | Revision | File | Change |
 | --- | --- | --- |

@@ -2,6 +2,8 @@
 
 Source: `db/models.py`. Related: [Migrations](MIGRATIONS.md), [Database](DATABASE.md).
 
+`DEEPSEEK_API_KEY` and `OPENAI_API_KEY` are not columns. Both are **IMPLEMENTED — NOT CONFIGURED**. `META_ACCESS_TOKEN` is not a column. Publishing uses `instagram_accounts.access_token_encrypted` for that user. Logo and product bytes, once uploaded, are `business_assets` rows. Production files are not uploaded yet.
+
 Types below are shortened: `S` string, `T` text, `DT` datetime, `D` date, `J` JSON, `B` boolean, `I` integer, `N` numeric.
 
 ## Identity

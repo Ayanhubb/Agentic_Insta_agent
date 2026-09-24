@@ -33,7 +33,7 @@ Successful payloads always include `tenant_id`.
 
 ## Read/write
 
-Every allowlisted handler reads repositories or Graph. None insert posts, none call `PublicationService`, and none accept a publish flag. `get_content_rules` returns `publishing.available: false` and `user_prompt_auto_publish: false`.
+Every allowlisted handler reads repositories or Graph (GET only, on the account server). None insert posts, none call `PublicationService`, and none accept a publish flag. `get_content_rules` returns `publishing.available: false` and `user_prompt_auto_publish: false`. Account reads are the input to DeepSeek trend analysis. `get_company_logo` and `get_product_image` are the input to the OpenAI edit path when a file exists. Production logos and product images are not uploaded yet, so those tools return `found: false` until a user uploads one.
 
 ## Canva
 

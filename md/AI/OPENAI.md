@@ -2,7 +2,7 @@
 
 Related: [Image generation](IMAGE_GENERATION.md), [DeepSeek](DEEPSEEK.md), [AI architecture](../AI_ARCHITECTURE.md).
 
-OpenAI is the image provider. It is not the default reasoning provider. It does not publish to Instagram and it is not the vision QA provider. An `OPENAI_API_KEY` does not move content planning, studio planning, or trend analysis onto OpenAI.
+OpenAI is the professional image generation and editing provider. Status: **IMPLEMENTED — NOT CONFIGURED.** `OPENAI_API_KEY` is empty. It is not the default reasoning provider. It does not publish to Instagram and it is not the vision QA provider. An `OPENAI_API_KEY` does not move content planning, studio planning, or trend analysis onto OpenAI.
 
 ## Environment
 
@@ -22,7 +22,7 @@ OpenAI is the image provider. It is not the default reasoning provider. It does 
 | `IMAGE_MAX_ATTEMPTS` | `3` | Image retries |
 | `REQUEST_TIMEOUT_SECONDS` | `30` | Client timeout |
 
-Live credentials are optional until a real image call is requested. Startup does not require `OPENAI_API_KEY`. When `IMAGE_PROVIDER=openai` but the key or image model is empty, startup uses `MockImageGenerationProvider` and does not crash. `OpenAIImageGenerationProvider.generate` then raises `OPENAI_CONFIGURATION_ERROR`.
+Status is **IMPLEMENTED — NOT CONFIGURED**, not a failure. Startup does not require `OPENAI_API_KEY`. When `IMAGE_PROVIDER=openai` but the key or image model is empty, startup uses `MockImageGenerationProvider` and does not crash. `OpenAIImageGenerationProvider.generate` and the edit provider then raise `OPENAI_CONFIGURATION_ERROR` (HTTP 503).
 
 `LLM_PROVIDER=openai` with a key and `LLM_MODEL` still selects `OpenAILLMProvider`. That path is opt-in. The default reasoning provider is DeepSeek.
 
@@ -40,8 +40,8 @@ This chat client is what `ContentAgent` uses only when `LLM_PROVIDER=openai`. Th
 
 See [Image generation](IMAGE_GENERATION.md). Two classes exist:
 
-- `OpenAIImageGenerationProvider` (`ai/openai_image_generator.py`) — `images.generate` from a text prompt. Reference assets are appended as labels, not bytes.
-- `OpenAIImageProvider` (`backend/ai/image/openai.py`) — `generate` and `edit`. The edit call sends real image bytes. `services/image_reference.py` uses this when the orchestrator has reference files.
+- `OpenAIImageGenerationProvider` (`ai/openai_image_generator.py`) — `images.generate` from a text prompt when no reference file was loaded.
+- `OpenAIImageProvider` (`backend/ai/image/openai.py`) — generation and edit. When MCP has marked a company logo or product image `AVAILABLE`, `submit_creative_image` sends those bytes on the edit call. Production logos and product images are not uploaded yet, so this path currently has no files to attach. A missing asset is not drawn and then stored as the company logo.
 
 ## Tests
 

@@ -4,7 +4,7 @@ Related: [MCP architecture](MCP_ARCHITECTURE.md), [Trend research](../INTELLIGEN
 
 Server string: `trend`. Module: `backend/mcp/servers/trend.py`.
 
-These tools read stored rows. They do not browse, do not call DeepSeek, and cannot publish.
+These tools read stored rows. They do not browse, do not call DeepSeek themselves, and cannot publish. `TrendIntelligence` calls DeepSeek only after these reads and the account-intelligence reads are normalized. That model is **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty.
 
 Authentication is the trusted tenant on `MCPClient.invoke`. The model cannot pass `user_id`.
 

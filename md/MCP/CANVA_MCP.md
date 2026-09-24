@@ -2,7 +2,7 @@
 
 Related: [MCP architecture](MCP_ARCHITECTURE.md), [Content generation](../CONTENT/CONTENT_GENERATION.md), [Secrets](../SECURITY/SECRETS.md).
 
-Canva is optional. `CANVA_ENABLED` defaults to false. DeepSeek and OpenAI image generation do not require it. Canva cannot publish to Instagram.
+Canva MCP is a content and creative workflow only. Status: **IMPLEMENTED — NOT CONFIGURED.** `CANVA_ENABLED` defaults to false, and no user connection is required for startup. DeepSeek and OpenAI image generation do not require it. Canva never publishes to Instagram or Meta.
 
 ## Connection
 
@@ -48,7 +48,7 @@ The creative plan chooses the renderer.
 
 `produce` lists only that account's templates and assets, creates a design from the approved brief, and exports a PNG. The bytes then use the same vision QA and `PENDING_APPROVAL` path as an OpenAI image. Canva does not receive Meta permissions and does not call `media_publish`.
 
-There is no logo upload. If the connected account has no brand template or asset yet, the plan stays on `none` and OpenAI generates the image. Later uploads are picked up by the same asset lookup.
+Canva does not upload the company logo. Company logos and product photos are the app's own assets, loaded by MCP when a user has uploaded them. Those production files are not uploaded yet. If the connected Canva account has no brand template or asset, the plan stays on `none` and OpenAI generates the image.
 
 `CanvaAdapter.apply` is only the scheduler observation hook. It returns `applied: false`. It does not create a second design and it does not call Meta.
 

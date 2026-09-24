@@ -6,14 +6,14 @@ Related: [Architecture](ARCHITECTURE.md), [DeepSeek](AI/DEEPSEEK.md), [OpenAI](A
 
 | Job | Implementation | Status |
 | --- | --- | --- |
-| Studio creative plan (`POST /api/v1/generation`) | `get_creative_model` in `ai/creative_model.py`. `LLM_PROVIDER=deepseek` and a non-empty `DEEPSEEK_API_KEY` → `DeepSeekCreativeClient`. Otherwise `GroundedCreativeModel` (local template, no HTTP) | Implemented |
-| Scheduler content plan | `ContentAgent` + `select_reasoning_provider` in `ai/llm_client.py`. `LLM_PROVIDER` default `deepseek` | Implemented |
-| Image pixels | `get_image_generation_provider` returns `OpenAIImageGenerationProvider` only for `openai` or an empty name. Studio references with bytes use `backend.ai.image.OpenAIImageProvider.edit` | Implemented |
-| Vision QA | `DeepSeekVisionProvider` in `ai/vision/deepseek.py` when the factory loads. Scheduler `ImageQAService` passes structurally if no vision client is attached | Implemented |
-| DeepSeek image generation | No image endpoint, no `images.generate` call | NOT IMPLEMENTED |
-| OpenAI vision QA | Not wired. `VISION_PROVIDER` default is `deepseek` | NOT IMPLEMENTED |
+| Studio creative plan (`POST /api/v1/generation`) | `get_creative_model` in `ai/creative_model.py`. `LLM_PROVIDER=deepseek` and a non-empty `DEEPSEEK_API_KEY` → `DeepSeekCreativeClient`. Otherwise `GroundedCreativeModel` (local template, no HTTP) | **IMPLEMENTED — NOT CONFIGURED** |
+| Scheduler content plan and trend briefs | `ContentAgent` and `DeepSeekTrendAnalyst` use `select_reasoning_provider` / `get_llm_provider`. `LLM_PROVIDER` default is `deepseek` | **IMPLEMENTED — NOT CONFIGURED** |
+| Image pixels | `IMAGE_PROVIDER=openai`. Text prompts use `OpenAIImageGenerationProvider`. Logo and product bytes from MCP use `OpenAIImageProvider` edit | **IMPLEMENTED — NOT CONFIGURED** |
+| Vision QA | `DeepSeekVisionProvider` when the key is set. Without it, studio QA is structural and the scheduler records `provider=structural` | **IMPLEMENTED — NOT CONFIGURED** |
+| DeepSeek image generation | No image endpoint. DeepSeek does not draw pixels | Not a product feature |
+| OpenAI vision QA | Not wired. `VISION_PROVIDER` default is `deepseek` | Not a product feature |
 
-`DeepSeek = reasoning` and `OpenAI = images`. `LLM_PROVIDER` defaults to `deepseek`. `IMAGE_PROVIDER` defaults to `openai`. An OpenAI key does not become the reasoning provider. Live `DEEPSEEK_API_KEY` and `OPENAI_API_KEY` values are optional until a real call is requested. Startup logs the provider names and does not log keys.
+`DeepSeek = reasoning, trend analysis, and content planning.` `OpenAI = professional image generation and editing.` `LLM_PROVIDER` defaults to `deepseek`. `IMAGE_PROVIDER` defaults to `openai`. An OpenAI key does not become the reasoning provider. `DEEPSEEK_API_KEY` and `OPENAI_API_KEY` are **IMPLEMENTED — NOT CONFIGURED**. Startup logs the provider names, does not log keys, and does not fail. A live call without a key returns a configuration error. Production logos and product images are not uploaded yet. When a file is later uploaded, MCP resolves it and the OpenAI edit path receives the bytes. A missing file does not become a fake company logo.
 
 ## Provider selection in `create_app`
 

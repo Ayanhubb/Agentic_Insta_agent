@@ -5,7 +5,21 @@ Authoritative documentation for Instagram Agentic AI. These pages describe the w
 - Last documentation verification date: **2026-09-24**
 - FastAPI `version`: **2.0.0** (`api/app.py`)
 - Frontend package version: **1.0.0** (`frontend/package.json`)
-- Git HEAD at verification: **`6c69ffe`** (2026-09-24). Uncommitted source beyond that commit is included in this documentation.
+- Git HEAD at verification: **`8ad7dc4`**
+
+## Current status
+
+These behaviors are in the code. Empty keys and missing uploads are configuration, not failed features.
+
+| Area | Status |
+| --- | --- |
+| DeepSeek reasoning, trend analysis, and content planning | **IMPLEMENTED — NOT CONFIGURED.** `DEEPSEEK_API_KEY` is empty. Startup uses `MockLLMProvider` and `GroundedCreativeModel`. A live call raises `DEEPSEEK_CONFIGURATION_ERROR` |
+| OpenAI image generation and editing | **IMPLEMENTED — NOT CONFIGURED.** `OPENAI_API_KEY` is empty. Startup uses `MockImageGenerationProvider`. A live call raises `OPENAI_CONFIGURATION_ERROR` |
+| Product image and company logo | **IMPLEMENTED — NOT CONFIGURED.** MCP can pass owned files into the OpenAI edit path. Production logos and product images are not uploaded yet. A missing file is not replaced with a generated logo |
+| Instagram intelligence | **IMPLEMENTED.** Meta Graph reads go through account intelligence, then MCP, then DeepSeek trend analysis |
+| Canva MCP | **IMPLEMENTED — NOT CONFIGURED.** Creative workflow only. `CANVA_ENABLED` defaults to false. Canva never publishes |
+| Instagram publishing | **IMPLEMENTED.** The Instagram Agent is the only Meta publisher |
+| Global `META_ACCESS_TOKEN` | Not a production credential. Used only when `APP_ENV` is `development`, `dev`, or `local` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. Unset `APP_ENV` is production, so the fallback is off |
 
 ## Architecture
 

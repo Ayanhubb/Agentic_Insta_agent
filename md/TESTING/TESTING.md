@@ -25,7 +25,7 @@ python -m pytest -m real_instagram
 python -m pytest -m integration
 ```
 
-`real_deepseek` is defined and excluded. No test is marked with it. Status: **NOT IMPLEMENTED**.
+`real_deepseek` is defined and excluded from the default run. No test is marked with it. A live DeepSeek call is not required. DeepSeek itself is **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. `real_openai` is the same kind of opt-in for OpenAI and is also excluded by default. Latest default run: 421 passed, 4 skipped (Meta credential gates), 2 deselected (`real_openai`). Frontend: 39 tests passed. `npm run build` succeeded.
 
 ## What the default suite covers
 

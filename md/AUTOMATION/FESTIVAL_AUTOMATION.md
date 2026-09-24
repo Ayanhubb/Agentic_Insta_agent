@@ -4,7 +4,7 @@ Related: [Festival MCP](../MCP/FESTIVAL_MCP.md), [Scheduler](SCHEDULER.md), [Dat
 
 ## Source of dates
 
-The scheduler catalog is the `FESTIVALS` list in `festivals/india_festivals.py`. Lunar and movable dates are explicit civil dates. They are not computed from an astronomical library.
+The scheduler catalog is the `FESTIVALS` list in `festivals/india_festivals.py`. Lunar and movable dates are explicit civil dates. They are not computed from an astronomical library and DeepSeek is not asked for them. Festival copy and creative direction use the DeepSeek content plan (**IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty). Publishing, when approved, is the Instagram Agent only.
 
 `festivals/data/lunar_dates.json` overrides a year when `LUNAR_KEYS` maps the festival name and that year exists in the JSON. If a lunar festival has no date for the requested year, `occurrence_for_year` returns nothing and that festival is skipped.
 

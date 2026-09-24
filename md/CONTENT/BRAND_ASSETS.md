@@ -1,6 +1,6 @@
 # Brand assets
 
-No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+Brand asset grounding is **IMPLEMENTED — NOT CONFIGURED**. Production logos are not uploaded yet. The process starts without them. MCP → OpenAI edit runs only after a real file is `AVAILABLE`. A missing logo is not generated and stored as the company logo.
 
 Related: [Brand MCP](../MCP/BRAND_ASSET_MCP.md), [Products](PRODUCTS.md), [Image generation](../AI/IMAGE_GENERATION.md), [Media storage](../STORAGE/MEDIA_STORAGE.md).
 

@@ -28,13 +28,13 @@ Creative model (`ai/creative_model.py`):
 - `LLM_PROVIDER=deepseek` and `DEEPSEEK_API_KEY` set → `DeepSeekCreativeClient`
 - otherwise → `GroundedCreativeModel`
 
-An OpenAI key does not select the studio planner. A missing DeepSeek key does not crash startup.
+An OpenAI key does not select the studio planner. DeepSeek planning is **IMPLEMENTED — NOT CONFIGURED**: a missing `DEEPSEEK_API_KEY` uses `GroundedCreativeModel` and does not crash startup. OpenAI drawing is **IMPLEMENTED — NOT CONFIGURED** the same way. Owned logo and product bytes, when uploaded, go MCP → OpenAI edit. Those production files are not uploaded yet. A missing logo is not invented.
 
 ## `ContentAgent` (`agent/content_agent.py`)
 
 Used by the daily and festival schedulers (`scheduler/scheduler.py`).
 
-`create_plan` / `run` call `LLMProvider.generate_content_plan`. The scheduler passes `select_reasoning_provider`: DeepSeek when `LLM_PROVIDER=deepseek` and the key is set, `MockLLMProvider` when that key is missing, and `OpenAILLMProvider` only when `LLM_PROVIDER=openai`.
+`create_plan` / `run` call `LLMProvider.generate_content_plan`. The scheduler passes `select_reasoning_provider`. The default `LLM_PROVIDER` is `deepseek`: DeepSeek when the key is set, `MockLLMProvider` when that key is missing. `OpenAILLMProvider` is used only when `LLM_PROVIDER=openai` is set explicitly. Logo and product references use the same MCP resolver as the studio path before any OpenAI edit.
 
 `DiversityPolicy` rejects repeated themes inside a session. Plan attempts default to 3.
 

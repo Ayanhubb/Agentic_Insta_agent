@@ -14,7 +14,7 @@ Related: [Instagram agent](../AGENTS/INSTAGRAM_AGENT.md), [Instagram intelligenc
 
 ## Credentials
 
-Authenticated publishing uses the signed-in user's row in `instagram_accounts`. The access token is Fernet-encrypted (`access_token_encrypted`). The Instagram Agent receives a copy of that token only for the Graph call. Responses, MCP tools, DeepSeek, OpenAI, React, and logs do not receive it.
+Authenticated publishing uses the signed-in user's row in `instagram_accounts`. The Instagram Agent is the only caller of Graph create/publish/verify. The access token is Fernet-encrypted (`access_token_encrypted`). The agent receives a copy of that token only for the Graph call. Responses, MCP tools, DeepSeek, OpenAI, Canva, React, and logs do not receive it. DeepSeek and OpenAI keys are **IMPLEMENTED — NOT CONFIGURED** and are unrelated to this token.
 
 `META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are not a production fallback. If the user has no connected account, publish, approve, and the scheduler return `INSTAGRAM_NOT_CONNECTED` (HTTP 409). An expired token returns `AUTHENTICATION_ERROR`. A connected row with an empty token returns `AUTHENTICATION_ERROR` ("missing"). A request that names another user's Instagram account id returns `PERMISSION_ERROR`.
 

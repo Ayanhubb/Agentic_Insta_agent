@@ -13,12 +13,13 @@ Related: [Integration audit](FINAL_INTEGRATION_AUDIT.md), [Architecture](../ARCH
 | Auth | JWT HS256, cookie `access_token`, bcrypt, `sessions` table |
 | Data | SQLAlchemy models in `db/models.py`, Alembic `001`–`006`, SQLite by default |
 | MCP | In-process allowlist of 22 read tools in `backend/mcp/` |
-| Studio planner | `DeepSeekCreativeClient` when `DEEPSEEK_API_KEY` is set, else `GroundedCreativeModel` |
-| Scheduler planner | `ContentAgent` plus `LLM_PROVIDER` (default `openai`) |
-| Images | OpenAI, or `MockImageGenerationProvider` |
-| Vision | DeepSeek when the vision factory loads, else structural QA |
-| Publisher | `InstagramAgent` only |
-| Canva | Optional remote MCP, off unless `CANVA_ENABLED` |
+| Studio planner | DeepSeek when `DEEPSEEK_API_KEY` is set, else `GroundedCreativeModel`. **IMPLEMENTED — NOT CONFIGURED** |
+| Scheduler planner | `ContentAgent` plus `LLM_PROVIDER` (default `deepseek`). Missing key uses `MockLLMProvider`, not OpenAI. **IMPLEMENTED — NOT CONFIGURED** |
+| Trend analysis | MCP evidence, including Instagram `trend_context`, then `DeepSeekTrendAnalyst`. **IMPLEMENTED — NOT CONFIGURED** |
+| Images | OpenAI generation, and OpenAI edit when MCP has a logo or product file. **IMPLEMENTED — NOT CONFIGURED**. Production logos and product images are not uploaded yet |
+| Vision | DeepSeek when the vision factory loads, else structural QA. **IMPLEMENTED — NOT CONFIGURED** |
+| Publisher | `InstagramAgent` only. `META_ACCESS_TOKEN` is not a production fallback |
+| Canva | Creative MCP only. Never publishes. **IMPLEMENTED — NOT CONFIGURED** (`CANVA_ENABLED` defaults to false) |
 | Scheduler | In-process loop, off unless `SCHEDULER_ENABLED` |
 
 ## Publishing
@@ -40,6 +41,6 @@ Only `PUBLISHED` with `instagram_media_id` counts. Unknown publish certainty is 
 - DeepSeek image generation
 - Reels, stories, carousels
 - Instagram OAuth code flow
-- A live `real_deepseek` test
+- A live `real_deepseek` test in the default suite (the provider is implemented; the key is not configured, and live tests stay optional)
 - Semantic similarity beyond token overlap
 - `LLMPlanner` as a production planner

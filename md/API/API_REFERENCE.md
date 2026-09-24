@@ -2,6 +2,8 @@
 
 Source of truth: route decorators under `api/`, mounted in `api/app.py` with prefix `/api/v1` unless noted. Related: [Authentication](AUTHENTICATION.md), [Instagram API](INSTAGRAM_API.md).
 
+`POST /api/v1/generation` plans with DeepSeek and draws with OpenAI. Both are **IMPLEMENTED — NOT CONFIGURED** while their API keys are empty; the route still exists and startup does not require the keys. `published` stays false until `POST /api/v1/generation/{image_id}/approve` or `POST /api/v1/instagram/publish`, and both of those call the Instagram Agent. Canva is creative-only. `GET /api/v1/ai/status` reports whether the keys are set and does not return them. Production logos and product images are not uploaded yet.
+
 ## Auth model
 
 Most routes use `require_password_ok`: valid session (cookie `access_token` or `Authorization: Bearer`), user active, and `must_change_password` is false. Otherwise 403 `MUST_CHANGE_PASSWORD`.

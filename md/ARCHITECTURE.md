@@ -1,12 +1,12 @@
 # Architecture
 
-Last verified against the working tree on 2026-09-24. Application version reported by FastAPI is `2.0.0` (`api/app.py`). Git HEAD at verification was `6c69ffe`; the tree also contains uncommitted implementation.
+Last verified against the working tree on 2026-09-24. Application version reported by FastAPI is `2.0.0` (`api/app.py`). Git HEAD at verification was `8ad7dc4`.
 
 Related: [AI architecture](AI_ARCHITECTURE.md), [MCP](MCP.md), [API reference](API/API_REFERENCE.md), [Database](DATABASE/DATABASE.md), [Scheduler](AUTOMATION/SCHEDULER.md).
 
 ## What the process actually does
 
-The product is a multi-user Instagram **still-image** studio. React talks to FastAPI. A signed-in user (or the in-process scheduler) asks for content. MCP loads that user's business, brand, product, festival, trend, and account facts. A creative planner writes a plan. OpenAI generates the image when configured. DeepSeek Vision reviews it when a DeepSeek key and vision client are present. A human approves, or automation publishes only when every approval gate passes. The Instagram Agent is the only component that calls Meta create/publish/verify.
+The product is a multi-user Instagram **still-image** studio. React talks to FastAPI. A signed-in user (or the in-process scheduler) asks for content. MCP loads that user's business, brand, product, festival, trend, and account facts. DeepSeek writes the plan, the trend brief, and the vision review when `DEEPSEEK_API_KEY` is set. OpenAI generates or edits the image when `OPENAI_API_KEY` and an image model are set. Owned product images and the company logo reach that edit call through MCP when the files exist. Those production files are not uploaded yet. A human approves, or automation publishes only when every approval gate passes. The Instagram Agent is the only component that calls Meta create/publish/verify. Canva, when enabled, only exports a creative.
 
 ```text
 React (frontend/)
@@ -26,8 +26,9 @@ Creative plan
    scheduler: that same reasoning provider via ContentAgent
    ↓
 IMAGE_PROVIDER=openai
-   OpenAI image generation when OPENAI_API_KEY and an image model are set,
-   otherwise MockImageGenerationProvider
+   OpenAI image generation, or edit when MCP loaded a logo or product image
+   MockImageGenerationProvider when OPENAI_API_KEY or the image model is empty
+   Production logos and product images are not uploaded yet
    ↓
 DeepSeek Vision QA when a vision client is wired;
 otherwise a structural image check
@@ -39,7 +40,7 @@ Instagram Agent (six tools)
 Meta Graph API
 ```
 
-DeepSeek is the reasoning provider. OpenAI is the image provider. An OpenAI key does not take over planning. Live keys are optional until a real DeepSeek or OpenAI call is requested; startup logs `LLM provider: deepseek` and `Image provider: openai` and does not crash when those keys are empty. See [AI architecture](AI_ARCHITECTURE.md).
+DeepSeek is the reasoning provider for content planning, trend analysis, and vision QA. OpenAI is the image generation and edit provider. An OpenAI key does not take over planning. Both API keys are **IMPLEMENTED — NOT CONFIGURED**: they are empty in this environment, startup still succeeds, and a live call returns `DEEPSEEK_CONFIGURATION_ERROR` or `OPENAI_CONFIGURATION_ERROR`. Startup logs `LLM provider: deepseek` and `Image provider: openai`. See [AI architecture](AI_ARCHITECTURE.md).
 
 ## Publishing boundary
 

@@ -22,7 +22,7 @@ All tables are declared on `Base` in `db/models.py`. Names and columns are liste
 | `users.password_hash` | bcrypt (`auth/passwords.py`) |
 | `sessions.token_hash` | Hash of the JWT id, not the raw token |
 
-API keys for OpenAI and DeepSeek are not columns.
+API keys for OpenAI and DeepSeek are not columns. Both are **IMPLEMENTED — NOT CONFIGURED** in the environment. `META_ACCESS_TOKEN` is not a user row and is not used for production publish. Per-user Instagram tokens live only in `instagram_accounts.access_token_encrypted`. Logo and product files, once uploaded, are `business_assets` rows. None are loaded as production assets yet.
 
 ## Tests
 

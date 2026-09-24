@@ -1,6 +1,6 @@
 # MCP
 
-In-process MCP lives in `backend/mcp/`. It is an allowlisted tool registry, not a separate network server. The optional Canva integration is a remote MCP at `https://mcp.canva.com/mcp` and is not on this allowlist.
+In-process MCP lives in `backend/mcp/`. It is an allowlisted tool registry, not a separate network server. The optional Canva integration is a remote MCP at `https://mcp.canva.com/mcp` and is not on this allowlist. Canva is creative-only and never publishes. Account tools carry Meta reads into DeepSeek. `get_company_logo` and `get_product_image` carry owned files into the OpenAI edit path when those files exist. Production logos and product images are not uploaded yet.
 
 Related: [MCP architecture](MCP/MCP_ARCHITECTURE.md), [Trend](MCP/TREND_MCP.md), [Instagram account tools](MCP/INSTAGRAM_MCP.md), [Product](MCP/PRODUCT_MCP.md), [Brand and assets](MCP/BRAND_ASSET_MCP.md), [Festival](MCP/FESTIVAL_MCP.md), [Canva](MCP/CANVA_MCP.md).
 

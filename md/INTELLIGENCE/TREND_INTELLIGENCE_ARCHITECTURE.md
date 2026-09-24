@@ -75,5 +75,5 @@ Read models and mutations are in [API reference](../API/API_REFERENCE.md) under 
 | DeepSeek web browsing | NOT IMPLEMENTED |
 | Treating a brief as evidence | Rejected by the analyst |
 | Publishing because a trend exists | NOT IMPLEMENTED. Auto-publish flags still apply |
-| `real_deepseek` trend test | NOT IMPLEMENTED |
+| `real_deepseek` trend test | Excluded from default pytest on purpose. DeepSeek analysis is **IMPLEMENTED — NOT CONFIGURED** |
 | Coverage-only festival names as scheduled campaigns | NOT IMPLEMENTED. Catalog is `FESTIVALS` only |

@@ -2,7 +2,7 @@
 
 Related: [Architecture](../ARCHITECTURE.md), [Instagram API](../API/INSTAGRAM_API.md), [Security](../SECURITY/SECURITY.md).
 
-`InstagramAgent` in `agent/agent.py` is the only publisher. `build_registry` registers exactly these tools (`agent/planner.py` `ALLOWED_TOOL_SET`):
+`InstagramAgent` in `agent/agent.py` is the only Meta/Instagram publisher. DeepSeek, OpenAI, Canva, MCP, the trend scheduler, and React do not call `media_publish`. `build_registry` registers exactly these tools (`agent/planner.py` `ALLOWED_TOOL_SET`):
 
 | Tool | Step |
 | --- | --- |

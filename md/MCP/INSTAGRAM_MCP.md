@@ -4,7 +4,7 @@ Related: [MCP architecture](MCP_ARCHITECTURE.md), [Instagram intelligence](../IN
 
 Server string: `account`. Module: `backend/mcp/servers/account.py`.
 
-There is no tool that creates or publishes media. Publish names are rejected before the handler runs.
+There is no tool that creates or publishes media. Publish names are rejected before the handler runs. The analysis path is Meta Graph → Instagram intelligence → these MCP tools → DeepSeek. DeepSeek does not call Graph. The reasoning key is **IMPLEMENTED — NOT CONFIGURED**.
 
 Authentication: trusted tenant. The Graph token is the Fernet-encrypted token on `instagram_accounts` for that user. Tools do not accept a token argument and do not return one.
 

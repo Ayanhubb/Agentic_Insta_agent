@@ -24,7 +24,7 @@ These run in the default `pytest` selection. They use fake HTTP or in-memory sto
 | `integration` | `tests/test_instagram_integration.py` | Meta credentials in the environment |
 | `real_instagram` | `tests/test_real_instagram.py` | A real professional account and token |
 | `real_openai` | `tests/test_real_openai.py` | `OPENAI_API_KEY` and a configured model |
-| `real_deepseek` | none | NOT IMPLEMENTED |
+| `real_deepseek` | none | Excluded on purpose. The provider is **IMPLEMENTED — NOT CONFIGURED**, not a missing feature |
 
 Default pytest excludes `real_openai` and `real_deepseek`. `integration` and `real_instagram` are not excluded by the addopts expression. If those modules skip themselves without credentials, the default run still passes. If they do not skip, set the markers explicitly or expect skips/failures when tokens are absent. Check the module for `pytest.importorskip` or `pytest.mark.skipif` before treating a failure as a product bug.
 

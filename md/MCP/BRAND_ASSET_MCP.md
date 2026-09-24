@@ -1,6 +1,6 @@
 # Brand and asset MCP
 
-No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+Company logo lookup is **IMPLEMENTED — NOT CONFIGURED**. Production logos are not uploaded yet. When a logo file exists, `get_company_logo` returns it for this tenant and the OpenAI edit path can attach the bytes. A missing logo returns `found: false` and is not replaced with a generated mark.
 
 Related: [Brand assets](../CONTENT/BRAND_ASSETS.md), [MCP architecture](MCP_ARCHITECTURE.md), [Tenant isolation](../SECURITY/TENANT_ISOLATION.md).
 

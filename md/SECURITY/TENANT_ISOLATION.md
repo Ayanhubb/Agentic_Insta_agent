@@ -32,4 +32,4 @@ Asset tools raise `ASSET_ACCESS_DENIED` when the id exists for a different user.
 
 Each publish resolves `instagram_accounts` for the authenticated `user_id` only. The decrypted token and Instagram user id from that row are what the agent sends to Graph. A requested account id that belongs to someone else returns `PERMISSION_ERROR` and does not read that user's token.
 
-`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` do not publish for a user who has no connected account in production. They are not a tenant. The scheduler uses the same owned-account check and fails with `INSTAGRAM_NOT_CONNECTED` when the business has no connected account. See [Security](SECURITY.md).
+`META_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` are not a tenant and are not a production publisher. `legacy_environment_credentials_allowed()` is false unless `INSTAGRAM_LEGACY_ENV_FALLBACK` is true and `APP_ENV` is `development`, `dev`, or `local`. Unset `APP_ENV` is `production`, and `staging` is also refused. The scheduler never opts into that path and fails with `INSTAGRAM_NOT_CONNECTED` when the business has no connected account. See [Security](SECURITY.md).

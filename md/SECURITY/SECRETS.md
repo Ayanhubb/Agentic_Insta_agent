@@ -6,8 +6,8 @@ Related: [Security](SECURITY.md). No secret values belong in this file.
 
 | Secret | Environment | Stored in the database? | Sent to the browser? |
 | --- | --- | --- | --- |
-| `OPENAI_API_KEY` | yes | no | no |
-| `DEEPSEEK_API_KEY` | yes | no | no |
+| `OPENAI_API_KEY` | yes. **IMPLEMENTED — NOT CONFIGURED** (empty). Image generation and editing only | no | no |
+| `DEEPSEEK_API_KEY` | yes. **IMPLEMENTED — NOT CONFIGURED** (empty). Reasoning, trend analysis, and content planning only | no | no |
 | `JWT_SECRET` (`SECRET_KEY` alias) | yes | no | no. Signs tokens |
 | `TOKEN_ENCRYPTION_KEY` (`ACCOUNT_TOKEN_FERNET_KEY` alias) | yes | no | no |
 | `META_ACCESS_TOKEN` (`INSTAGRAM_ACCESS_TOKEN` alias) | yes, development-only. Production publishing ignores it. Also set `INSTAGRAM_ACCOUNT_ID`. Requires `APP_ENV=development` (or `dev` / `local`) and `INSTAGRAM_LEGACY_ENV_FALLBACK=true` | no. Per-user tokens are encrypted columns and are the production credential | no |

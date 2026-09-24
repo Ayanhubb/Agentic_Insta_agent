@@ -2,7 +2,7 @@
 
 Related: [DeepSeek](../AI/DEEPSEEK.md), [Image generation](../AI/IMAGE_GENERATION.md), [Scheduler](../AUTOMATION/SCHEDULER.md).
 
-Two checkers exist.
+Vision QA is DeepSeek. Status: **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. Without the key, both checkers below stay structural. That is not a failed QA feature. Two checkers exist.
 
 ## Studio (`ContentOrchestrator`)
 

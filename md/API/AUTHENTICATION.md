@@ -31,7 +31,7 @@ Registration and login are public. `GET /api/v1/health` is public. `GET /api/v1/
 
 `POST /api/v1/instagram/connect` stores the Graph token with Fernet (`TOKEN_ENCRYPTION_KEY`, with fallback env name `ACCOUNT_TOKEN_FERNET_KEY`). Responses pass through `strip_secrets`. Disconnect clears the connection for that user only.
 
-Production publishing does not fall back to `META_ACCESS_TOKEN` or `INSTAGRAM_ACCOUNT_ID`. Those variables are a development-only path (`APP_ENV=development` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`). Without a connected account the API returns `INSTAGRAM_NOT_CONNECTED`.
+Production publishing does not fall back to `META_ACCESS_TOKEN` or `INSTAGRAM_ACCOUNT_ID`. `Settings.legacy_environment_credentials_allowed()` is true only when `INSTAGRAM_LEGACY_ENV_FALLBACK` is set and `APP_ENV` is `development`, `dev`, or `local`. Unset `APP_ENV` is `production`. `production`, `prod`, and `staging` never enable the fallback. The scheduler does not opt in. Without a connected account the API returns `INSTAGRAM_NOT_CONNECTED`.
 
 ## Tests
 

@@ -7,7 +7,7 @@ There is no class named `TrendIntelligenceAgent`. The implemented pieces are:
 | Piece | Module | Role |
 | --- | --- | --- |
 | Research | `backend/trends/research.py` `TrendResearcher` | HTTP GET of allowlisted news and government URLs. Does not call DeepSeek |
-| Analyst | `backend/trends/analyst.py` `DeepSeekTrendAnalyst` | Turns stored observations into a validated `TrendBrief` |
+| Analyst | `backend/trends/analyst.py` `DeepSeekTrendAnalyst` | Turns MCP evidence, including Instagram `trend_context`, into a validated `TrendBrief`. **IMPLEMENTED — NOT CONFIGURED** until `DEEPSEEK_API_KEY` is set. Does not call Meta or publish |
 | Packet | `backend/trends/packet.py` `TrendIntelligence` | Reads MCP evidence tools, then calls the analyst |
 | Scheduler | `scheduler/trend_scheduler.py` `TrendIntelligenceScheduler` | Collects, analyzes, stores a report, may generate content |
 | Opportunities | `agent/opportunity_engine.py` `OpportunityEngine` | Ranks a brief into a content request. Does not publish |

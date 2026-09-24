@@ -2,7 +2,7 @@
 
 Related: [AI architecture](../AI_ARCHITECTURE.md), [OpenAI](OPENAI.md), [Image QA](../CONTENT/IMAGE_QA.md), [Trend research](../INTELLIGENCE/TREND_RESEARCH.md).
 
-DeepSeek is a text and vision client. It does not generate images and it does not publish to Instagram.
+DeepSeek is the reasoning client for content planning, trend analysis, and vision QA. Status: **IMPLEMENTED — NOT CONFIGURED.** `DEEPSEEK_API_KEY` is empty. It does not generate images and it does not publish to Instagram. It does not call Meta.
 
 ## Environment
 
@@ -41,7 +41,7 @@ Structured calls send `response_format: {"type":"json_object"}`. Responses are v
 | Trend briefs | The trend stage calls `generate_structured` on the reasoning provider after `backend/trends/packet.py` normalizes MCP reads. The packet contains the account summary, recent content, available metrics, historical performance, trend evidence, festival context, business context, and product context. Unavailable Instagram metrics are gaps. Statements stay OBSERVED, INFERRED, or RECOMMENDED. The analyst does not browse, call Meta, or publish |
 | Vision QA | `ai/vision/deepseek.py` `DeepSeekVisionProvider` |
 
-Live credentials are optional until a real DeepSeek call is requested. Startup does not require `DEEPSEEK_API_KEY` and does not crash when it is empty. The app then uses `MockLLMProvider` for reasoning and `GroundedCreativeModel` for studio plans. `get_llm_provider(...).generate_content_plan` with an empty key raises `DEEPSEEK_CONFIGURATION_ERROR` and does not fall through to OpenAI.
+Status is **IMPLEMENTED — NOT CONFIGURED**, not a failure. Startup does not require `DEEPSEEK_API_KEY` and does not crash when it is empty. The app then uses `MockLLMProvider` for reasoning and `GroundedCreativeModel` for studio plans. `get_llm_provider(...).generate_content_plan` with an empty key raises `DEEPSEEK_CONFIGURATION_ERROR` (HTTP 503) and does not fall through to OpenAI. Instagram account facts reach this model only after MCP has normalized them. See [Instagram intelligence](../INTELLIGENCE/INSTAGRAM_INTELLIGENCE.md).
 
 `LLM_PROVIDER=mock` keeps `MockLLMProvider` even when a DeepSeek key is present. `LLM_PROVIDER=openai` is an explicit opt-in for `OpenAILLMProvider`. The OpenAI key alone never makes OpenAI the reasoning provider.
 
@@ -55,8 +55,8 @@ Local files are sent as base64 data URLs. Public HTTPS URLs are passed through. 
 
 ## Error handling
 
-Transport and validation failures surface as `AppError` codes used by the OpenAI path as well (`OPENAI_TIMEOUT`, `OPENAI_RATE_LIMITED`, configuration errors) or as analyst rejection of invented facts. Secrets are redacted by `services/logging.py` before they reach logs.
+Transport and validation failures use DeepSeek codes: `DEEPSEEK_CONFIGURATION_ERROR` (503), `DEEPSEEK_INVALID_RESPONSE` (502), `DEEPSEEK_API_ERROR` (502), `DEEPSEEK_TIMEOUT` (504), `DEEPSEEK_RATE_LIMITED` (429), and `DEEPSEEK_UNAVAILABLE` (503). Vision failures may use `VISION_PROVIDER_ERROR`. The analyst also rejects invented facts. Secrets are redacted by `services/logging.py` before they reach logs.
 
 ## Tests
 
-`tests/test_deepseek.py` mocks the HTTP client. `tests/test_instagram_mcp_deepseek.py` mocks the path from Meta through MCP into `DeepSeekTrendAnalyst`. The `real_deepseek` pytest marker exists in `pytest.ini` and is excluded by default. **No test file uses `@pytest.mark.real_deepseek`.** Status: **NOT IMPLEMENTED** for a live DeepSeek test.
+`tests/test_deepseek.py` mocks the HTTP client. `tests/test_instagram_mcp_deepseek.py` mocks the path from Meta through MCP into `DeepSeekTrendAnalyst`. The `real_deepseek` marker is excluded from default pytest. No test file uses it, so a live DeepSeek call is not required. That is intentional while the key is unset. It is not a failure of the provider.

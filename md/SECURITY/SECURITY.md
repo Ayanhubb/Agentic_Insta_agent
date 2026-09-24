@@ -30,7 +30,7 @@ Public media URLs are unauthenticated by design. They are not a directory listin
 
 | Item | Status |
 | --- | --- |
-| Global `META_ACCESS_TOKEN` fallback | Closed for production. Publishing uses the user's encrypted token. The process token is used only when `APP_ENV` is development and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. Scheduler and automatic publishing never use it |
+| Global `META_ACCESS_TOKEN` fallback | Closed for production, staging, and the default (`APP_ENV` unset is `production`). Publishing uses the user's encrypted token. The process token is used only when `APP_ENV` is `development`, `dev`, or `local`, `INSTAGRAM_LEGACY_ENV_FALLBACK=true`, and the caller opts in. The scheduler does not opt in |
 | `JWT_SECRET` default `dev-change-me` when unset | PARTIAL. Replace before any shared deployment |
 | Cookie `Secure` default false | Expected for local HTTP. Set `JWT_COOKIE_SECURE=true` behind HTTPS |
 | Instagram OAuth | NOT IMPLEMENTED. The user pastes a token |

@@ -1,6 +1,6 @@
 # Image generation
 
-No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+OpenAI image generation and editing are **IMPLEMENTED — NOT CONFIGURED** (`OPENAI_API_KEY` is empty). Product images and the company logo are **IMPLEMENTED — NOT CONFIGURED**: the MCP-to-edit path is in the code, and production logos and product images are not uploaded yet.
 
 Related: [OpenAI](OPENAI.md), [Brand assets](../CONTENT/BRAND_ASSETS.md), [Products](../CONTENT/PRODUCTS.md), [Image QA](../CONTENT/IMAGE_QA.md), [Media storage](../STORAGE/MEDIA_STORAGE.md).
 
@@ -31,7 +31,7 @@ Image generation is OpenAI-only. DeepSeek does not implement an image API in thi
 - `get_image_generation_provider`: `IMAGE_PROVIDER=openai` → `OpenAIImageGenerationProvider`. `mock` → `MockImageGenerationProvider`. Any other name, including `deepseek`, raises `OPENAI_CONFIGURATION_ERROR`. Construction does not require `OPENAI_API_KEY`.
 - `select_image_provider`: used at startup. OpenAI when `IMAGE_PROVIDER=openai` and a key plus image model are set. Otherwise `MockImageGenerationProvider`, including when the key is missing. Startup does not crash and does not ask DeepSeek for pixels.
 
-Live credentials are optional until image generation is requested. A missing key on `OpenAIImageGenerationProvider.generate` returns `OPENAI_CONFIGURATION_ERROR`.
+A missing key is **IMPLEMENTED — NOT CONFIGURED**, not a failure. `OpenAIImageGenerationProvider.generate` and the edit provider return `OPENAI_CONFIGURATION_ERROR`. Startup keeps `MockImageGenerationProvider`.
 
 `backend/ai/image/factory.py` `get_openai_image_provider` / `create_image_provider` returns `OpenAIImageProvider` for the edit path. The module docstring states it is not an Instagram tool and cannot publish.
 

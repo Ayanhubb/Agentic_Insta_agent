@@ -6,7 +6,7 @@ Related: [Content agent](../AGENTS/CONTENT_AGENT.md), [Image generation](../AI/I
 
 `POST /api/v1/generation` body (`GenerateBody`): `prompt` (minimum 3 characters), optional `product_id`, `offer_id`, `festival`, `use_canva`.
 
-`ContentOrchestrator.run` requires a business profile with `business_name`. It loads MCP facts, plans, generates, runs QA, and returns:
+`ContentOrchestrator.run` requires a business profile with `business_name`. DeepSeek plans when `DEEPSEEK_API_KEY` is set (**IMPLEMENTED — NOT CONFIGURED** otherwise: the local planner runs and startup still succeeds). It loads MCP facts, including a logo or product image when one has been uploaded. Those production files are not uploaded yet. OpenAI then generates or edits the image (**IMPLEMENTED — NOT CONFIGURED** while `OPENAI_API_KEY` is empty). QA runs, and the response includes:
 
 `task`, `plan`, `creative_plan`, `image`, `generated_image`, `approval_status`, `published: false`.
 

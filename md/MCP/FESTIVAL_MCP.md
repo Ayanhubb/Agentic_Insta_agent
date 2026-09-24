@@ -2,7 +2,7 @@
 
 Related: [Festival automation](../AUTOMATION/FESTIVAL_AUTOMATION.md), [MCP architecture](MCP_ARCHITECTURE.md).
 
-Two implementations share tool names. Neither publishes.
+Two implementations share tool names. Neither publishes. Festival dates come from the stored catalog. DeepSeek may write festival creative copy later; it is not asked to calculate a date. Canva is not part of this server.
 
 ## Allowlisted server
 

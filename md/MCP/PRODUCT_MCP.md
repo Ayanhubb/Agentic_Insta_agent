@@ -1,6 +1,6 @@
 # Product MCP
 
-No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+Product image lookup is **IMPLEMENTED — NOT CONFIGURED**. Production product images are not uploaded yet. When a file exists, `get_product_image` returns it for this tenant and the OpenAI edit path can attach the bytes. A missing image returns `found: false`. Generation continues from product metadata and does not invent a photo.
 
 Related: [Products](../CONTENT/PRODUCTS.md), [MCP architecture](MCP_ARCHITECTURE.md), [Image generation](../AI/IMAGE_GENERATION.md).
 

@@ -1,6 +1,6 @@
 # Final documentation audit
 
-Date: 2026-09-24. Git HEAD `6c69ffe`. The pages describe the working tree, including uncommitted modules beyond that commit. FastAPI version `2.0.0`.
+Date: 2026-09-24. The inventory below was taken at git `6c69ffe`. Later the same day, HEAD `8ad7dc4` was documented again. Where this page still says the scheduler default is `openai`, or lists the process Meta token and missing provider keys as unfinished code, those sentences are superseded by [Final integration audit](FINAL_INTEGRATION_AUDIT.md) and the 2026-09-24 provider section in [Changelog](CHANGELOG.md). FastAPI version `2.0.0`.
 
 ## Documentation inventory
 
@@ -167,7 +167,7 @@ Every file in the tree above except the rewritten `md/README.md`, `md/ARCHITECTU
 
 | Old claim | What the code does |
 | --- | --- |
-| Root README: the only LLM is OpenAI | Studio plans use DeepSeek when `DEEPSEEK_API_KEY` is set, otherwise `GroundedCreativeModel`. The scheduler follows `LLM_PROVIDER`, default `openai` |
+| Root README: the only LLM is OpenAI | Studio and scheduler plans use DeepSeek. `LLM_PROVIDER` defaults to `deepseek`. A missing key is **IMPLEMENTED — NOT CONFIGURED**, not an OpenAI planner |
 | Single pipeline "DeepSeek then OpenAI" with no branch | Two planner paths. Images are OpenAI or the mock. Vision is DeepSeek or a structural check |
 | MCP allowlist of 10 or "22" guessed from an older note | `MCP_TOOL_ALLOWLIST` has 22 names. Confirmed by import on 2026-09-24 |
 | Trend subsystem absent | `backend/trends/`, trend MCP, `/api/v1/trends`, Alembic `005` and `006` |
@@ -183,26 +183,28 @@ Every file in the tree above except the rewritten `md/README.md`, `md/ARCHITECTU
 
 Documented with the ratings in [Final integration audit](FINAL_INTEGRATION_AUDIT.md).
 
-PARTIAL:
+Superseded on HEAD `8ad7dc4`. Do not treat the bullets below as the current provider story. Current status is in the integration audit.
 
-- DeepSeek is not the scheduler planner unless `LLM_PROVIDER=deepseek`
-- Vision QA falls back to a structural pass
-- Text-only image generation does not send reference pixels
+Still true in code:
+
 - Graph omits some insight fields; `shares` is a column and is not requested
-- Duplicate `GET /api/v1/admin/users`; dead `api/instagram_account_routes.py`
-- Process-level `META_ACCESS_TOKEN` fallback
-- Canva apply does not run unless a capability was selected
+- Duplicate `GET /api/v1/admin/users`; `api/instagram_account_routes.py` is not mounted
 - `JWT_SECRET` falls back to `dev-change-me` when unset
+- DeepSeek does not generate images
+- `SemanticSimilarityBackend` and production `LLMPlanner` are not the live planners
+- `SessionContextStore` festival context and task persistence are incomplete
+- Live `real_deepseek` is excluded from default pytest on purpose
+- Instagram OAuth code flow is not implemented; connect accepts a pasted token
+- Festivals that exist only in `coverage.json` are not scheduled
+- Reels, stories, and carousels are not published
 
-NOT IMPLEMENTED:
+No longer accurate as gaps:
 
-- DeepSeek image generation
-- `SemanticSimilarityBackend`, production `LLMPlanner`
-- `SessionContextStore` festival context and task persistence
-- Live `real_deepseek` test
-- Instagram OAuth code flow
-- Scheduling festivals that exist only in `coverage.json`
-- Reels, stories, carousels
+- Scheduler reasoning defaults to `deepseek`, not `openai`
+- Missing DeepSeek and OpenAI keys are **IMPLEMENTED — NOT CONFIGURED**
+- Reference pixels go out on the OpenAI edit path when MCP has an `AVAILABLE` file. Production logos and product images are not uploaded yet
+- `META_ACCESS_TOKEN` does not publish in production. It requires `INSTAGRAM_LEGACY_ENV_FALLBACK` and `APP_ENV` of `development`, `dev`, or `local`
+- Canva `query` / `produce` is the creative path. Canva never publishes. It is **IMPLEMENTED — NOT CONFIGURED** because `CANVA_ENABLED` defaults to false
 
 FAIL: none recorded. The publisher boundary holds.
 
@@ -235,11 +237,13 @@ Names in the provider pages match `Settings.from_env` in `config.py`. Several of
 | Command | Result |
 | --- | --- |
 | `python -m pytest` on the Anaconda base interpreter | Failed at collection: `ModuleNotFoundError: No module named 'openai'` |
-| `.venv\Scripts\python.exe -m pytest` | **372 passed, 4 skipped, 2 deselected** in 106.42s. The two deselected tests are the default exclusion of `real_openai` and `real_deepseek` |
+| `.venv\Scripts\python.exe -m pytest` at the first documentation pass | **372 passed, 4 skipped, 2 deselected** |
+| `python -m pytest` on HEAD `8ad7dc4` | **421 passed, 4 skipped, 2 deselected**. Skips are Meta credential gates. Deselected tests are `real_openai` |
 | `npm test` in `frontend/` | **13 files, 39 tests passed** |
+| `npm run build` | Succeeded on the later pass |
 
-`npm run build` was not run for this documentation change.
+The earlier collection failure on the Anaconda base interpreter (`ModuleNotFoundError: No module named 'openai'`) is an environment gap, not a product failure.
 
 ## Completion
 
-These pages match the modules, routes, tables, and tool names checked above. They are not a claim that every PARTIAL item has been finished in code. Gaps stay labeled PARTIAL or NOT IMPLEMENTED in the integration audit.
+The route, table, and tool inventory above still matches the modules checked on that pass. Provider, asset, Canva, and Meta-token status was corrected later the same day. Use [Final integration audit](FINAL_INTEGRATION_AUDIT.md) for those ratings. Missing DeepSeek and OpenAI keys, and missing production logos, are **IMPLEMENTED — NOT CONFIGURED**.

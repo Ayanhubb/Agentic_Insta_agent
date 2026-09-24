@@ -1,6 +1,6 @@
 # Products
 
-No production logo/product assets are currently configured. The asset pipeline is implemented and waits for user-uploaded assets.
+Product image grounding is **IMPLEMENTED — NOT CONFIGURED**. Production product images are not uploaded yet. The process starts without them. MCP → OpenAI edit runs only after a real file is `AVAILABLE`. A missing photo is not invented.
 
 Related: [Product MCP](../MCP/PRODUCT_MCP.md), [Brand assets](BRAND_ASSETS.md), [Image generation](../AI/IMAGE_GENERATION.md).
 
