@@ -1,6 +1,6 @@
 # Agent platform architecture
 
-> **Status on 2026-09-28.** The studio path below is the production process and is not being replaced. Platform packages exist and are **PARTIAL**. One canonical implementation for each platform concern is fixed in [PLATFORM_CANONICAL_COMPONENTS.md](PLATFORM_CANONICAL_COMPONENTS.md). Duplicates are listed in [PLATFORM_DUPLICATE_AUDIT.md](PLATFORM_DUPLICATE_AUDIT.md) and are not deleted yet. Sentences below that say a package does not exist yet are historical. Database tables for agents, webhooks, and replacing `POST /api/v1/instagram/publish` are still not done.
+> **Status on 2026-09-28.** The studio path below is the production process and is not being replaced. Agents, versions, and executions are in Alembic `007_platform_agents`. Shadow mode can run `instagram.reference` and cannot publish. One canonical implementation for each platform concern is fixed in [PLATFORM_CANONICAL_COMPONENTS.md](PLATFORM_CANONICAL_COMPONENTS.md). Duplicates are listed in [PLATFORM_DUPLICATE_AUDIT.md](PLATFORM_DUPLICATE_AUDIT.md) and are not deleted yet. Webhooks and replacing `POST /api/v1/instagram/publish` are still not done.
 
 Related: [Concept](AGENT_PLATFORM_CONCEPT.md), [Agent model](AGENT_PLATFORM_AGENT_MODEL.md), [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md), [Runtime](AGENT_PLATFORM_RUNTIME.md), [MCP](AGENT_PLATFORM_MCP.md), [Providers](AGENT_PLATFORM_PROVIDER_MODEL.md), [Security](AGENT_PLATFORM_SECURITY.md), [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md), [Migration](AGENT_PLATFORM_MIGRATION_PLAN.md), [Decisions](AGENT_PLATFORM_DECISIONS.md).
 
@@ -41,7 +41,7 @@ Chosen 2026-09-28. The studio functions in the diagram stay the live publishers 
 | Concern | Use this | Do not add another |
 | --- | --- | --- |
 | Agent API | `/api/v1/agents` (`AgentBuilderService`) | `/api/v1/platform/agents` is the unused duplicate |
-| Agent store | `agent_runtime.catalog.InMemoryCatalog` | `AgentBuilderStore` |
+| Agent store | `agent_runtime.catalog.InMemoryCatalog`, with SQL in `agents`, `agent_versions`, `agent_executions` | `AgentBuilderStore` |
 | Workflow engine | `agent_runtime.engine.WorkflowEngine` | `agent_platform.workflow.engine.WorkflowEngine` |
 | Tool grants | `backend.mcp` `MCPRegistry` | `PlatformToolRegistry` |
 | Publish tools | `agent/registry.py` inside `InstagramAgent` only | MCP, Canva, DeepSeek, OpenAI, the scheduler, the runtime |

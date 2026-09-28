@@ -1,6 +1,6 @@
 # Provider model
 
-> **Status on 2026-09-25.** Later code added the packages this page describes. They are **PARTIAL**: present as libraries or in-memory APIs, not mounted as the live studio path, and not stored in Alembic. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say the package does not exist yet are historical. Database tables, webhooks, and replacing `POST /api/v1/instagram/publish` are still not done.
+> **Status on 2026-09-28.** Agents, versions, and executions are in Alembic `007_platform_agents`. Shadow mode can run `instagram.reference` and cannot publish. The generic runtime does not own `POST /api/v1/instagram/publish`. Knowledge documents, asset records, and trigger state are still not separate tables. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say agents are not stored, or that a package does not exist yet, are historical.
 
 Related: [AI architecture](AI_ARCHITECTURE.md), [DeepSeek](AI/DEEPSEEK.md), [OpenAI](AI/OPENAI.md), [Image generation](AI/IMAGE_GENERATION.md), [Runtime](AGENT_PLATFORM_RUNTIME.md).
 

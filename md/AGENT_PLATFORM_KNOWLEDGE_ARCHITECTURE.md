@@ -1,6 +1,6 @@
 # Knowledge architecture
 
-> **Status on 2026-09-25.** Checked against the tree. This page matches the package it names. Limits (not the live studio path, not durable) are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
+> **Status on 2026-09-28.** Checked against the tree. This page matches the package it names. The live studio path is unchanged. Agent rows are durable in `007_platform_agents`. Limits are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [Platform architecture](AGENT_PLATFORM_ARCHITECTURE.md), [Asset architecture](AGENT_PLATFORM_ASSET_ARCHITECTURE.md), [Data model](AGENT_PLATFORM_DATA_MODEL.md), [MCP](AGENT_PLATFORM_MCP.md), [Security](AGENT_PLATFORM_SECURITY.md), [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md).
 

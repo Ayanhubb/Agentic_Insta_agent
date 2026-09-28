@@ -3,7 +3,7 @@
 Authoritative documentation for Instagram Agentic AI. These pages describe the working tree, not an older design.
 
 - Studio pages last verified: **2026-09-24**
-- Agent platform status: **2026-09-25**, [final audit](AGENT_PLATFORM_FINAL_AUDIT.md)
+- Agent platform status: **2026-09-28**, [final audit](AGENT_PLATFORM_FINAL_AUDIT.md)
 - FastAPI `version`: **2.0.0** (`api/app.py`)
 - Frontend package version: **1.0.0** (`frontend/package.json`)
 
@@ -19,7 +19,7 @@ These behaviors are in the code. Empty keys and missing uploads are configuratio
 | Instagram intelligence | **IMPLEMENTED.** Meta Graph reads go through account intelligence, then MCP, then DeepSeek trend analysis |
 | Canva MCP | **IMPLEMENTED — NOT CONFIGURED.** Creative workflow only. `CANVA_ENABLED` defaults to false. Canva never publishes |
 | Instagram publishing | **IMPLEMENTED.** The Instagram Agent is the only Meta publisher |
-| Agent platform | **PARTIAL.** Packages and `/agents` exist. Configuration is in memory, not the live publish path. See the final audit |
+| Agent platform | **PARTIAL.** Agents, versions, and executions are stored. Shadow mode can run `instagram.reference` and cannot publish. The studio publish path is unchanged. See the final audit |
 | Global `META_ACCESS_TOKEN` | Not a production credential. Used only when `APP_ENV` is `development`, `dev`, or `local` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. Unset `APP_ENV` is production, so the fallback is off |
 
 ## Architecture
@@ -43,11 +43,13 @@ These behaviors are in the code. Empty keys and missing uploads are configuratio
 
 ## Agent platform
 
-These pages describe packages added after the studio. The [final audit](AGENT_PLATFORM_FINAL_AUDIT.md) is the current status. The studio still publishes through the Instagram Agent. Platform agents are in memory and are not the live request path.
+These pages describe packages added after the studio. The [final audit](AGENT_PLATFORM_FINAL_AUDIT.md) is the current status. The studio still publishes through the Instagram Agent. Shadow mode does not replace that path.
 
 - [Final audit](AGENT_PLATFORM_FINAL_AUDIT.md)
 - [Duplicate audit](PLATFORM_DUPLICATE_AUDIT.md)
 - [Canonical components](PLATFORM_CANONICAL_COMPONENTS.md)
+- [Shadow mode](PLATFORM_SHADOW_MODE.md)
+- [Scheduler deployment](SCHEDULER_DEPLOYMENT_MODEL.md)
 - [Concept](AGENT_PLATFORM_CONCEPT.md)
 - [Architecture](AGENT_PLATFORM_ARCHITECTURE.md)
 - [Decisions](AGENT_PLATFORM_DECISIONS.md)

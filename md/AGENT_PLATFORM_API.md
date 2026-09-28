@@ -2,7 +2,7 @@
 
 Related: [Agent model](AGENT_PLATFORM_AGENT_MODEL.md), [Data model](AGENT_PLATFORM_DATA_MODEL.md), [Instagram reference agent](INSTAGRAM_REFERENCE_AGENT.md), [API reference](API/API_REFERENCE.md).
 
-**IMPLEMENTED** as process-local configuration on the in-memory agent catalog. Routes live in `api/agent_routes.py`. This is the canonical agent API ([canonical components](PLATFORM_CANONICAL_COMPONENTS.md)). No Alembic revision was added. Instagram publishing routes are unchanged. `/api/v1/platform/agents` is a duplicate and is not the API new work should call.
+**IMPLEMENTED** on `api/agent_routes.py`, with durable rows in `agents`, `agent_versions`, and `agent_executions` (Alembic `007_platform_agents`). This is the canonical agent API ([canonical components](PLATFORM_CANONICAL_COMPONENTS.md)). The runtime catalog is still in memory and is reloaded from those rows. Instagram publishing routes are unchanged. `/api/v1/platform/agents` is a duplicate and is not the API new work should call.
 
 Authentication is `require_password_ok`. The tenant id is the session user's id. Another tenant's agent key returns 404. The system agent `instagram_marketing` is visible to every tenant and cannot be updated, disabled, retired, or rolled back.
 

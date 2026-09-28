@@ -1,6 +1,6 @@
 # Agent runtime implementation
 
-> **Status on 2026-09-25.** Checked against the tree. This page matches the package it names. Limits (not the live studio path, not durable) are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
+> **Status on 2026-09-28.** Checked against the tree. This page matches the package it names. The live studio path is unchanged. Agent rows are durable in `007_platform_agents`. Limits are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [Runtime proposal](AGENT_PLATFORM_RUNTIME.md), [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md), [Agent model](AGENT_PLATFORM_AGENT_MODEL.md), [Security](AGENT_PLATFORM_SECURITY.md), [Decisions](AGENT_PLATFORM_DECISIONS.md).
 

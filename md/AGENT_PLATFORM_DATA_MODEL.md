@@ -1,12 +1,14 @@
 # Agent platform data model
 
-> **Status on 2026-09-25.** Later code added the packages this page describes. They are **PARTIAL**: present as libraries or in-memory APIs, not mounted as the live studio path, and not stored in Alembic. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say the package does not exist yet are historical. Database tables, webhooks, and replacing `POST /api/v1/instagram/publish` are still not done.
+> **Status on 2026-09-28.** Agents, versions, and executions are in Alembic `007_platform_agents`. Shadow mode can run `instagram.reference` and cannot publish. The generic runtime does not own `POST /api/v1/instagram/publish`. Knowledge documents, asset records, and trigger state are still not separate tables. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say agents are not stored, or that a package does not exist yet, are historical.
 
 Related: [Concept](AGENT_PLATFORM_CONCEPT.md), [Architecture](AGENT_PLATFORM_ARCHITECTURE.md), [Agent model](AGENT_PLATFORM_AGENT_MODEL.md), [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md), [Runtime](AGENT_PLATFORM_RUNTIME.md), [MCP](AGENT_PLATFORM_MCP.md), [Providers](AGENT_PLATFORM_PROVIDER_MODEL.md), [Security](AGENT_PLATFORM_SECURITY.md), [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md), [Migration](AGENT_PLATFORM_MIGRATION_PLAN.md), [Decisions](AGENT_PLATFORM_DECISIONS.md), [Schema](DATABASE/DATABASE_SCHEMA.md).
 
 Proposal date: 2026-09-25. Inspected git HEAD `a63569e` and `db/models.py`. This page defines the generic domain. It does not add tables, columns, routes, or ORM classes.
 
 ## Implementation status
+
+On 2026-09-28 the stored model is three tables: `agents`, `agent_versions`, and `agent_executions`. Bindings stay in the version snapshot. The paragraphs below that say no tables exist are the 2026-09-25 proposal and are historical.
 
 **No SQLAlchemy models are added with this page.**
 

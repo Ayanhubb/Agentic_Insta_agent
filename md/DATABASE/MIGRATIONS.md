@@ -12,9 +12,10 @@ Alembic versions live in `db/migrations/versions/`. Startup also calls `init_db`
 | `004_generated_image_qa` | `004_generated_image_qa.py` | `generated_images.qa_status`, `generated_images.qa_json` |
 | `005_trend_research` | `005_trend_research.py` | `trend_sources`, `trend_observations`, `trend_reports` |
 | `006_trend_intelligence` | `006_trend_intelligence.py` | `trend_evidence`, snapshots, `content_opportunities`, extra observation and report columns, indexes |
+| `007_platform_agents` | `007_platform_agents.py` | `agents`, `agent_versions`, `agent_executions` |
 
 `scripts/init_db.py` is a manual initializer. It is not a seventh migration.
 
-There is no revision for agent definitions, platform knowledge documents, platform asset records, workflow executions, or trigger state. Those stores are process memory. `create_app` calls `init_db` (`create_all`) and does not run Alembic. On 2026-09-25, `upgrade head` on an empty SQLite file matched `Base.metadata`: 29 tables, head `006_trend_intelligence`.
+`007_platform_agents` stores agents, immutable published version snapshots, and executions. Platform knowledge documents, platform asset records, and trigger state are still process memory. `create_app` calls `init_db` (`create_all`) and does not run Alembic. On 2026-09-28, `upgrade head` on an empty SQLite file reached head `007_platform_agents`. An existing database still needs `alembic upgrade head`.
 
 Downgrade behavior is defined per revision file. Do not assume a downgrade drops data you still need; read that file before running it.

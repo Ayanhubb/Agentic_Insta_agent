@@ -2,6 +2,10 @@
 
 Documentation history for this repository. Application code was not changed for the 2026-09-24 documentation updates.
 
+## 2026-09-28 — Persistence, shadow mode, and scheduler lock
+
+Agents, versions, and executions are in Alembic `007_platform_agents`. `run_declared` executes the registered `instagram.reference` workflow. Shadow mode records a run and cannot publish. The studio publish path is unchanged. The scheduler uses a single-host file lock. Production `Settings.from_env` refuses a known JWT default. Current status: [final audit](../AGENT_PLATFORM_FINAL_AUDIT.md), [shadow mode](../PLATFORM_SHADOW_MODE.md), [scheduler deployment](../SCHEDULER_DEPLOYMENT_MODEL.md).
+
 ## 2026-09-25 — Agent platform docs aligned with the tree
 
 The proposal pages still said agent configuration, the runtime, and the registries did not exist. Those packages are in the tree and are **PARTIAL**: in memory or library-only, not the live publish path, and not in Alembic. Updated:

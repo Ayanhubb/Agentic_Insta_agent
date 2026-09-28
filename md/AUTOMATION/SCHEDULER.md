@@ -4,7 +4,7 @@ Related: [Daily automation](DAILY_AUTOMATION.md), [Festival automation](FESTIVAL
 
 ## Loop
 
-`SCHEDULER_ENABLED` defaults to false. When true, `create_app` starts `scheduler_loop` (`scheduler/scheduler.py`). Interval: `SCHEDULER_INTERVAL_SECONDS`, default 60, minimum 5. A failed tick is logged and the loop continues.
+`SCHEDULER_ENABLED` defaults to false. When true, `create_app` starts `scheduler_loop` (`scheduler/scheduler.py`) only if this process holds the exclusive file lock in `scheduler/leader.py`. A second worker on the same machine does not tick. A lock across hosts is not implemented. See [Scheduler deployment](../SCHEDULER_DEPLOYMENT_MODEL.md). Interval: `SCHEDULER_INTERVAL_SECONDS`, default 60, minimum 5. A failed tick is logged and the loop continues.
 
 `AutomationRunner.tick` opens a session, runs daily, then festival, then trend, then commits. An exception rolls the session back and is re-raised to the loop. Trend failures inside the trend scheduler are caught and returned as `{status: failed, reason: trend_run_failed}` so they do not fail the whole tick.
 

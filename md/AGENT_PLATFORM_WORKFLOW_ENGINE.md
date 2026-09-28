@@ -1,6 +1,6 @@
 # Workflow engine
 
-> **Status on 2026-09-25.** Checked against the tree. This page matches the package it names. Limits (not the live studio path, not durable) are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
+> **Status on 2026-09-28.** Checked against the tree. This page matches the package it names. The live studio path is unchanged. Agent rows are durable in `007_platform_agents`. Limits are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md), [Architecture](AGENT_PLATFORM_ARCHITECTURE.md), [Runtime](AGENT_PLATFORM_RUNTIME.md), [MCP](AGENT_PLATFORM_MCP.md), [Security](AGENT_PLATFORM_SECURITY.md), [Data model](AGENT_PLATFORM_DATA_MODEL.md), [Migration](AGENT_PLATFORM_MIGRATION_PLAN.md).
 

@@ -2,7 +2,7 @@
 
 Related: [Architecture](AGENT_PLATFORM_ARCHITECTURE.md), [Agent model](AGENT_PLATFORM_AGENT_MODEL.md), [Security](AGENT_PLATFORM_SECURITY.md), [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md).
 
-The agent builder is a separate area of the existing React app. The Instagram studio pages stay the interface of `instagram_marketing`. Status on 2026-09-25: **PARTIAL**. See [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
+The agent builder is a separate area of the existing React app. The Instagram studio pages stay the interface of `instagram_marketing`. Status on 2026-09-28: **PARTIAL**. Server configuration is durable. The UI still does not publish or execute. See [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 The pages call `/api/v1/agents` only. They do not call `/api/v1/platform/agents`, and they do not call validate, version publish, open draft, clone, rollback, or execute. Those routes exist on the server.
 
@@ -42,7 +42,7 @@ The pages use the same `request()` client as the studio: Bearer token or cookie,
 
 Routes require `require_password_ok`. A user agent is visible only to its owner. Another user's key is 404. The reference agent is 403 on every write.
 
-Configuration is process memory on `AgentBuilderService`. A restart clears user agents. The reference agent is registered from code.
+Configuration is saved to `agents` and `agent_versions` and reloaded when the API process starts. The reference agent is also registered from code. The React client still does not call validate, publish, or execute.
 
 Model fields are role, implementation name (`deepseek`, `openai`, `mock`), and model name. The only registered workflow is `instagram.reference`. The only registered approval policy is `instagram.still_image`. Tool names must be on `MCP_TOOL_ALLOWLIST`. Publishing tool names are rejected.
 

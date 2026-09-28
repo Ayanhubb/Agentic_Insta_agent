@@ -2,7 +2,7 @@
 
 Related: [MCP architecture](../MCP/MCP_ARCHITECTURE.md), [Authentication](../API/AUTHENTICATION.md), [Database](../DATABASE/DATABASE.md).
 
-The tenant id is the authenticated `users.id`. Routes pass `user.id` into repositories. They do not trust a user id in the JSON body.
+The tenant id is the authenticated `users.id`. Routes pass `user.id` into repositories. They do not trust a user id in the JSON body. Platform agents and executions use that same id. The shared reference agent uses tenant id `system`. Organizations and teams are not implemented.
 
 ## Database
 

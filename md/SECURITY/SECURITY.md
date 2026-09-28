@@ -31,9 +31,9 @@ Public media URLs are unauthenticated by design. They are not a directory listin
 | Item | Status |
 | --- | --- |
 | Global `META_ACCESS_TOKEN` fallback | Closed for production, staging, and the default (`APP_ENV` unset is `production`). Publishing uses the user's encrypted token. The process token is used only when `APP_ENV` is `development`, `dev`, or `local`, `INSTAGRAM_LEGACY_ENV_FALLBACK=true`, and the caller opts in. The scheduler does not opt in |
-| `JWT_SECRET` default `dev-change-me` when unset | PARTIAL. Replace before any shared deployment |
+| `JWT_SECRET` default `dev-change-me` when unset | PARTIAL. `Settings.from_env` refuses that default, the Docker fallback, and any secret shorter than 32 characters when `APP_ENV` is production or prod. Set a unique secret before production |
 | Cookie `Secure` default false | Expected for local HTTP. Set `JWT_COOKIE_SECURE=true` behind HTTPS |
 | Instagram OAuth | NOT IMPLEMENTED. The user pastes a token |
 | CSRF token | NOT IMPLEMENTED. Cookie is `HttpOnly` and `SameSite=Lax`. Mutations have no separate CSRF check |
-| Agent configuration durability | NOT IMPLEMENTED. `/api/v1/agents` and `/api/v1/platform/agents` keep records in process memory |
+| Agent configuration durability | IMPLEMENTED for `/api/v1/agents` in `agents`, `agent_versions`, and `agent_executions`. Published snapshots are immutable and contain no provider keys. `/api/v1/platform/agents` is still process memory |
 | Agent routes | IMPLEMENTED and session-scoped. They reject publishing tool names. Execute is a test and does not call Meta |

@@ -1,6 +1,6 @@
 # Instagram Marketing Agent
 
-> **Status on 2026-09-25.** Checked against the tree. This page matches the package it names. Limits (not the live studio path, not durable) are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
+> **Status on 2026-09-28.** Checked against the tree. This page matches the package it names. The live studio path is unchanged. Agent rows are durable in `007_platform_agents`. Limits are in [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md), [Instagram agent](AGENTS/INSTAGRAM_AGENT.md), [Content agent](AGENTS/CONTENT_AGENT.md), [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md), [Migration plan](AGENT_PLATFORM_MIGRATION_PLAN.md).
 

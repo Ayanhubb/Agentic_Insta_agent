@@ -1,6 +1,6 @@
 # Platform security
 
-> **Status on 2026-09-25.** Later code added the packages this page describes. They are **PARTIAL**: present as libraries or in-memory APIs, not mounted as the live studio path, and not stored in Alembic. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say the package does not exist yet are historical. Database tables, webhooks, and replacing `POST /api/v1/instagram/publish` are still not done.
+> **Status on 2026-09-28.** Agents, versions, and executions are in Alembic `007_platform_agents`. Shadow mode can run `instagram.reference` and cannot publish. The generic runtime does not own `POST /api/v1/instagram/publish`. Knowledge documents, asset records, and trigger state are still not separate tables. Read [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md). Sentences below that say agents are not stored, or that a package does not exist yet, are historical.
 
 Related: [Security](SECURITY/SECURITY.md), [Secrets](SECURITY/SECRETS.md), [Tenant isolation](SECURITY/TENANT_ISOLATION.md), [Authentication](API/AUTHENTICATION.md), [MCP](AGENT_PLATFORM_MCP.md).
 
@@ -25,7 +25,7 @@ Known gaps that stay gaps until someone changes them on purpose:
 
 | Item | Status |
 | --- | --- |
-| `JWT_SECRET` default `dev-change-me` when unset | **PARTIAL.** Replace before any shared deployment |
+| `JWT_SECRET` default `dev-change-me` when unset | **PARTIAL.** `Settings.from_env` refuses a known or short secret when `APP_ENV` is production or prod. Cookie `Secure` is still opt-in |
 | Cookie `Secure` default false | Expected for local HTTP. Set `JWT_COOKIE_SECURE=true` behind HTTPS |
 | Instagram OAuth | **NOT IMPLEMENTED.** The user pastes a token on `POST /api/v1/instagram/connect` |
 

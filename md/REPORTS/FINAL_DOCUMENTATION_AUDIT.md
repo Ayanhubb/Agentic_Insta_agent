@@ -191,7 +191,7 @@ Still true in code:
 
 - Graph omits some insight fields; `shares` is a column and is not requested
 - Duplicate `GET /api/v1/admin/users`; `api/instagram_account_routes.py` is not mounted
-- `JWT_SECRET` falls back to `dev-change-me` when unset
+- `Settings.from_env` refuses `dev-change-me` and other known JWT defaults when `APP_ENV` is production. Cookie `Secure` is still opt-in. Login JSON still returns the bearer token
 - DeepSeek does not generate images
 - `SemanticSimilarityBackend` and production `LLMPlanner` are not the live planners
 - `SessionContextStore` festival context and task persistence are incomplete

@@ -40,7 +40,7 @@ Owner scope means the row's `user_id` must equal the session user. Foreign ids r
 
 ## Agent builder
 
-Two routers, two in-memory stores, same session user. Neither writes Alembic tables. Neither calls Meta. Detail: [Agent platform API](../AGENT_PLATFORM_API.md). Current limits: [final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
+Two routers, same session user. `/api/v1/agents` writes `agents`, `agent_versions`, and `agent_executions`. `/api/v1/platform/agents` is still process memory. Neither calls Meta. Detail: [Agent platform API](../AGENT_PLATFORM_API.md). Current limits: [final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
 
 | Prefix | Module | Store |
 | --- | --- | --- |

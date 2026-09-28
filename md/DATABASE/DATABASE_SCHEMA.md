@@ -2,7 +2,7 @@
 
 Source: `db/models.py`. Related: [Migrations](MIGRATIONS.md), [Database](DATABASE.md).
 
-Agent definitions, platform knowledge documents, and platform asset records are not tables here. They are process memory.
+Platform agents are tables: `agents`, `agent_versions` (snapshot JSON), and `agent_executions`. Each row has `tenant_id`. Platform knowledge documents and platform asset records are still process memory.
 
 `DEEPSEEK_API_KEY` and `OPENAI_API_KEY` are not columns. Both are **IMPLEMENTED — NOT CONFIGURED**. `META_ACCESS_TOKEN` is not a column. Publishing uses `instagram_accounts.access_token_encrypted` for that user. Logo and product bytes, once uploaded, are `business_assets` rows. Production files are not uploaded yet.
 
@@ -63,6 +63,16 @@ Types below are shortened: `S` string, `T` text, `DT` datetime, `D` date, `J` JS
 | `festival_posts` | `id`, `campaign_id`, `generated_image_id`, `post_id`, `sequence_number`, `status`, `scheduled_for`, `published_at` |
 
 There is no `festivals` table. The catalog is code plus `festivals/data/lunar_dates.json`.
+
+## Platform agents
+
+| Table | Columns |
+| --- | --- |
+| `agents` | `id`, `tenant_id`, `agent_key`, `display_name`, `description`, `owner`, `status`, `published_version_number`, timestamps. Unique on `tenant_id` + `agent_key` |
+| `agent_versions` | `id`, `tenant_id`, `agent_id`, `version_number`, `status`, `snapshot` J, `created_at`. Unique on `agent_id` + `version_number`. A published snapshot is immutable |
+| `agent_executions` | `id`, `tenant_id`, `agent_id`, `agent_version_id`, `workflow_key`, `status`, `mode`, `started_at`, `completed_at`, `error_code`, `error_message`, `output` J |
+
+`agent_tasks` and `agent_events` above are the studio publisher. They are not these three tables. The snapshot stores provider and model names, not API keys.
 
 ## Canva
 

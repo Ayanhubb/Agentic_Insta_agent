@@ -85,8 +85,8 @@ Formats the agent cannot publish (carousel, reel, story) stay concept-only in `a
 3. Selects images from `IMAGE_PROVIDER` (default `openai`). OpenAI is used when `OPENAI_API_KEY` and an image model are set; otherwise `MockImageGenerationProvider`. DeepSeek is not an image provider.
 4. Resolves vision through `scheduler.integrations.resolve_vision` (`ai.vision.deepseek.get_vision_provider`).
 5. Builds `CanvaAdapter`. The client passed into generation is `None` unless `CANVA_ENABLED` is true.
-6. Starts `scheduler_loop` only when `SCHEDULER_ENABLED` is true. Default interval is 60 seconds.
-7. Mounts `/api/v1/agents` and `/api/v1/platform/agents`. Those stores are process memory. They do not replace generation, approval, or `POST /api/v1/instagram/publish`. The platform workflow engine, policy engine, tool registry, and trigger scheduler are not started here.
+6. Starts `scheduler_loop` only when `SCHEDULER_ENABLED` is true and this process holds the scheduler file lock. Default interval is 60 seconds. See [Scheduler deployment](SCHEDULER_DEPLOYMENT_MODEL.md).
+7. Mounts `/api/v1/agents` and `/api/v1/platform/agents`. `/api/v1/agents` also writes `agents`, `agent_versions`, and `agent_executions`. Those routes do not replace generation, approval, or `POST /api/v1/instagram/publish`. The platform policy engine and trigger scheduler are not started here. Shadow mode is a separate call.
 
 `POST /api/v1/generation` builds a `ContentOrchestrator` whose planner is `get_creative_model`: DeepSeek when `LLM_PROVIDER=deepseek` and `DEEPSEEK_API_KEY` is non-empty, otherwise `GroundedCreativeModel`. The scheduler `ContentAgent` and the trend stage use the reasoning provider from `select_reasoning_provider`. The trend stage does not open its own DeepSeek HTTP client. Instagram publishing stays on the Instagram Agent and Meta.
 
