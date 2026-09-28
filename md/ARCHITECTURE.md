@@ -1,6 +1,6 @@
 # Architecture
 
-Last verified against the working tree on 2026-09-24. Application version reported by FastAPI is `2.0.0` (`api/app.py`). Git HEAD at verification was `8ad7dc4`.
+Studio path last verified on 2026-09-24. Agent platform packages were rechecked on 2026-09-25. Application version reported by FastAPI is `2.0.0` (`api/app.py`). The current platform status is [the final audit](AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [AI architecture](AI_ARCHITECTURE.md), [MCP](MCP.md), [API reference](API/API_REFERENCE.md), [Database](DATABASE/DATABASE.md), [Scheduler](AUTOMATION/SCHEDULER.md).
 
@@ -53,8 +53,12 @@ DeepSeek is the reasoning provider for content planning, trend analysis, and vis
 | Canva adapter (`backend/integrations/canva/`) | No |
 | Content orchestrator and opportunity engine | No. Results set `published=False` |
 | Festival catalog and festival MCP | No |
+| Trend intelligence | No. It reads stored observations |
+| Agent runtime (`agent_runtime`) | No. It does not import the Graph client |
+| React agent builder | No. The studio Instagram page still posts to `/api/v1/instagram/publish` |
+| Scheduler campaign pipeline | No direct Graph call. It calls `PublicationService`, which runs the Instagram Agent |
 
-`enqueue_instagram_publication` in `agent/instagram_tasks.py` is the handoff into the agent. It does not call Graph itself.
+`enqueue_instagram_publication` in `agent/instagram_tasks.py` is the handoff into the agent. It does not call Graph itself. The reference package can call that handoff from `instagram_reference/handlers.py`. `create_app` does not mount that package.
 
 Publishing credentials are the signed-in user's encrypted Instagram token:
 
@@ -82,6 +86,7 @@ Formats the agent cannot publish (carousel, reel, story) stay concept-only in `a
 4. Resolves vision through `scheduler.integrations.resolve_vision` (`ai.vision.deepseek.get_vision_provider`).
 5. Builds `CanvaAdapter`. The client passed into generation is `None` unless `CANVA_ENABLED` is true.
 6. Starts `scheduler_loop` only when `SCHEDULER_ENABLED` is true. Default interval is 60 seconds.
+7. Mounts `/api/v1/agents` and `/api/v1/platform/agents`. Those stores are process memory. They do not replace generation, approval, or `POST /api/v1/instagram/publish`. The platform workflow engine, policy engine, tool registry, and trigger scheduler are not started here.
 
 `POST /api/v1/generation` builds a `ContentOrchestrator` whose planner is `get_creative_model`: DeepSeek when `LLM_PROVIDER=deepseek` and `DEEPSEEK_API_KEY` is non-empty, otherwise `GroundedCreativeModel`. The scheduler `ContentAgent` and the trend stage use the reasoning provider from `select_reasoning_provider`. The trend stage does not open its own DeepSeek HTTP client. Instagram publishing stays on the Instagram Agent and Meta.
 
@@ -101,7 +106,15 @@ Formats the agent cannot publish (carousel, reel, story) stay concept-only in `a
 | `festivals/` | India catalog, campaign rules, scheduler festival MCP |
 | `db/` | SQLAlchemy models, repositories, Alembic |
 | `services/` | Graph client, media storage, publication, Instagram reader |
-| `frontend/` | React dashboard |
+| `frontend/` | React dashboard and `/agents` builder |
+| `agent_runtime/` | Generic workflow runner. Not the studio publisher |
+| `agent_platform/` | Policy, approval, workflow, and trigger libraries. Not started by `create_app` |
+| `agent_builder/` | In-memory agent API behind `/api/v1/agents` |
+| `backend/platform/` | Tool registry, knowledge and asset stores, and the second agent API |
+| `instagram_reference/` | System agent `instagram_marketing`. Not mounted on HTTP |
+| `ai/model_registry/` | Canonical platform lookup. Delegates to the factories `create_app` already calls |
+
+Which platform copy is canonical, and which duplicate is left unused, is [PLATFORM_CANONICAL_COMPONENTS.md](PLATFORM_CANONICAL_COMPONENTS.md). The studio publish path in this page does not change.
 
 ## Not this product
 

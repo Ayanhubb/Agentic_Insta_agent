@@ -16,6 +16,15 @@ ALLOWED_GRAPH_HOSTS = frozenset({"graph.facebook.com", "graph.instagram.com"})
 ALLOWED_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/jpg", "image/png"})
 ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "PNG"})
 DEFAULT_MOCK_PUBLIC_BASE_URL = "https://cdn.example.test/instagram-agent"
+_KNOWN_JWT_DEFAULTS = frozenset(
+    {
+        "",
+        "dev-change-me",
+        "changeme",
+        "secret",
+        "docker-dev-jwt-secret-change-me-32b",
+    }
+)
 
 
 def _optional_env(name: str) -> str:
@@ -120,7 +129,7 @@ class Settings(BaseModel):
 
     database_url: str = ""
     token_encryption_key: str = ""
-    jwt_secret: str = "dev-change-me"
+    jwt_secret: str = "dev-change-me"  # refused by from_env when APP_ENV is production
     jwt_expire_minutes: int = 480
     jwt_cookie_secure: bool = False
     bcrypt_rounds: int = 12
@@ -288,7 +297,7 @@ class Settings(BaseModel):
         load_dotenv()
         max_bytes = _int_env("MAX_IMAGE_BYTES", 0)
         max_mb = _int_env("MAX_IMAGE_SIZE_MB", 8)
-        return cls(
+        settings = cls(
             meta_access_token=_optional_env("META_ACCESS_TOKEN")
             or _optional_env("INSTAGRAM_ACCESS_TOKEN"),
             instagram_account_id=_optional_env("INSTAGRAM_ACCOUNT_ID")
@@ -366,6 +375,20 @@ class Settings(BaseModel):
             canva_oauth_success_url=_optional_env("CANVA_OAUTH_SUCCESS_URL"),
             canva_allow_unofficial_endpoint=_bool_env("CANVA_ALLOW_UNOFFICIAL_ENDPOINT", False),
         )
+        settings._refuse_known_production_jwt()
+        return settings
+
+    def _refuse_known_production_jwt(self) -> None:
+        """Production must not start with a known or empty JWT secret."""
+
+        env = (self.app_env or "").strip().lower()
+        if env not in {"production", "prod"}:
+            return
+        secret = (self.jwt_secret or "").strip()
+        if secret in _KNOWN_JWT_DEFAULTS or len(secret) < 32:
+            raise RuntimeError(
+                "JWT_SECRET is unset or a known default. Set a unique JWT_SECRET of at least 32 characters."
+            )
 
 
 def validate_graph_base_url(url: str, *, strict: bool = True) -> None:

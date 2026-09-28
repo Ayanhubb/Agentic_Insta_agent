@@ -1,6 +1,6 @@
 # Final implementation report
 
-Verified against the working tree on 2026-09-24. This replaces the 21 September snapshot that predated MCP, DeepSeek planning, Canva, brand assets, and trend storage.
+Verified against the working tree on 2026-09-24. This replaces the 21 September snapshot that predated MCP, DeepSeek planning, Canva, brand assets, and trend storage. Agent platform packages added after this report are not in the tables below. Their status is [the final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Related: [Integration audit](FINAL_INTEGRATION_AUDIT.md), [Architecture](../ARCHITECTURE.md).
 

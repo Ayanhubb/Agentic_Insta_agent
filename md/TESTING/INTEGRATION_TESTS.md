@@ -4,7 +4,7 @@ Related: [Testing](TESTING.md), [Instagram API](../API/INSTAGRAM_API.md).
 
 ## Mocked integration
 
-These run in the default `pytest` selection. They use fake HTTP or in-memory stores.
+These run in the default `pytest` selection. They use fake HTTP or in-memory stores. Platform suites added on 2026-09-25 (`test_agent_runtime.py`, `test_agent_builder_api.py`, `test_instagram_reference_agent.py`, and the other files listed in [Testing](TESTING.md)) are in that same default run.
 
 | File | What it checks |
 | --- | --- |

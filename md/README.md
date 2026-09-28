@@ -2,10 +2,10 @@
 
 Authoritative documentation for Instagram Agentic AI. These pages describe the working tree, not an older design.
 
-- Last documentation verification date: **2026-09-24**
+- Studio pages last verified: **2026-09-24**
+- Agent platform status: **2026-09-25**, [final audit](AGENT_PLATFORM_FINAL_AUDIT.md)
 - FastAPI `version`: **2.0.0** (`api/app.py`)
 - Frontend package version: **1.0.0** (`frontend/package.json`)
-- Git HEAD at verification: **`8ad7dc4`**
 
 ## Current status
 
@@ -19,6 +19,7 @@ These behaviors are in the code. Empty keys and missing uploads are configuratio
 | Instagram intelligence | **IMPLEMENTED.** Meta Graph reads go through account intelligence, then MCP, then DeepSeek trend analysis |
 | Canva MCP | **IMPLEMENTED — NOT CONFIGURED.** Creative workflow only. `CANVA_ENABLED` defaults to false. Canva never publishes |
 | Instagram publishing | **IMPLEMENTED.** The Instagram Agent is the only Meta publisher |
+| Agent platform | **PARTIAL.** Packages and `/agents` exist. Configuration is in memory, not the live publish path. See the final audit |
 | Global `META_ACCESS_TOKEN` | Not a production credential. Used only when `APP_ENV` is `development`, `dev`, or `local` and `INSTAGRAM_LEGACY_ENV_FALLBACK=true`. Unset `APP_ENV` is production, so the fallback is off |
 
 ## Architecture
@@ -39,6 +40,40 @@ These behaviors are in the code. Empty keys and missing uploads are configuratio
 - [Instagram agent](AGENTS/INSTAGRAM_AGENT.md)
 - [Trend intelligence agent](AGENTS/TREND_INTELLIGENCE_AGENT.md)
 - [Account intelligence agent](AGENTS/ACCOUNT_INTELLIGENCE_AGENT.md)
+
+## Agent platform
+
+These pages describe packages added after the studio. The [final audit](AGENT_PLATFORM_FINAL_AUDIT.md) is the current status. The studio still publishes through the Instagram Agent. Platform agents are in memory and are not the live request path.
+
+- [Final audit](AGENT_PLATFORM_FINAL_AUDIT.md)
+- [Duplicate audit](PLATFORM_DUPLICATE_AUDIT.md)
+- [Canonical components](PLATFORM_CANONICAL_COMPONENTS.md)
+- [Concept](AGENT_PLATFORM_CONCEPT.md)
+- [Architecture](AGENT_PLATFORM_ARCHITECTURE.md)
+- [Decisions](AGENT_PLATFORM_DECISIONS.md)
+- [Agent model](AGENT_PLATFORM_AGENT_MODEL.md)
+- [Data model](AGENT_PLATFORM_DATA_MODEL.md)
+- [Workflow model](AGENT_PLATFORM_WORKFLOW_MODEL.md)
+- [Workflow engine](AGENT_PLATFORM_WORKFLOW_ENGINE.md)
+- [Runtime](AGENT_PLATFORM_RUNTIME.md)
+- [Runtime implementation](AGENT_PLATFORM_RUNTIME_IMPLEMENTATION.md)
+- [Instagram reference](AGENT_PLATFORM_INSTAGRAM_REFERENCE.md)
+- [Instagram reference agent](INSTAGRAM_REFERENCE_AGENT.md)
+- [MCP](AGENT_PLATFORM_MCP.md)
+- [MCP runtime](AGENT_PLATFORM_MCP_RUNTIME.md)
+- [Tool registry](AGENT_PLATFORM_TOOL_REGISTRY.md)
+- [Provider model](AGENT_PLATFORM_PROVIDER_MODEL.md)
+- [Model registry](AGENT_PLATFORM_MODEL_REGISTRY.md)
+- [Knowledge](AGENT_PLATFORM_KNOWLEDGE_ARCHITECTURE.md)
+- [Assets](AGENT_PLATFORM_ASSET_ARCHITECTURE.md)
+- [Triggers](AGENT_PLATFORM_TRIGGER_ARCHITECTURE.md)
+- [Scheduler](AGENT_PLATFORM_SCHEDULER_ARCHITECTURE.md)
+- [Policy](AGENT_PLATFORM_POLICY_ENGINE.md)
+- [Approval](AGENT_PLATFORM_APPROVAL_ENGINE.md)
+- [Security](AGENT_PLATFORM_SECURITY.md)
+- [Migration plan](AGENT_PLATFORM_MIGRATION_PLAN.md)
+- [Builder API](AGENT_PLATFORM_API.md)
+- [Builder frontend](AGENT_PLATFORM_FRONTEND.md)
 
 ## MCP
 
@@ -106,7 +141,7 @@ These behaviors are in the code. Empty keys and missing uploads are configuratio
 - [Final implementation report](REPORTS/FINAL_IMPLEMENTATION_REPORT.md)
 - [Final integration audit](REPORTS/FINAL_INTEGRATION_AUDIT.md)
 - [Changelog](REPORTS/CHANGELOG.md)
-- [Documentation audit](REPORTS/FINAL_DOCUMENTATION_AUDIT.md)
+- [Documentation audit](REPORTS/FINAL_DOCUMENTATION_AUDIT.md) (2026-09-24 studio inventory; superseded for the agent platform by the final audit)
 
 ## Install
 

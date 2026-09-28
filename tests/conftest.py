@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 from typing import Any
+
+# Production startup refuses a known JWT default. The suite is not a production
+# process, so give it a non-default secret before any settings are loaded.
+if os.getenv("JWT_SECRET", "").strip() in {"", "dev-change-me", "changeme", "secret", "docker-dev-jwt-secret-change-me-32b"}:
+    os.environ["JWT_SECRET"] = "test-jwt-secret-key-32-bytes-min"
 
 import httpx
 import pytest

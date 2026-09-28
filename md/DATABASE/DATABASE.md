@@ -4,7 +4,9 @@ Related: [Schema](DATABASE_SCHEMA.md), [Migrations](MIGRATIONS.md), [Secrets](..
 
 ## Engine
 
-`DATABASE_URL` defaults to SQLite at `data/agentic.db` when empty (`Settings.resolved_database_url`). PostgreSQL is supported as a URL (`postgresql+psycopg://...` is the comment in `.env.example`). `init_db` runs at application startup.
+`DATABASE_URL` defaults to SQLite at `data/agentic.db` when empty (`Settings.resolved_database_url`). PostgreSQL is supported as a URL (`postgresql+psycopg://...` is the comment in `.env.example`). `init_db` runs at application startup and does not apply Alembic by itself.
+
+Agent builder records are not in this database. They live in process memory. See [Migrations](MIGRATIONS.md).
 
 Sessions are SQLAlchemy sessions from `db/session.py`. Repositories in `db/repositories.py`, `db/asset_repositories.py`, and `db/trend_repositories.py` take a session and filter by `user_id`.
 

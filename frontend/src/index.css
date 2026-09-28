@@ -735,14 +735,16 @@ th {
   }
 }
 
-.trends-subnav {
+.trends-subnav,
+.section-subnav {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-5);
 }
 
-.trends-subnav a {
+.trends-subnav a,
+.section-subnav a {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 6px 12px;
@@ -750,9 +752,30 @@ th {
   text-decoration: none;
 }
 
-.trends-subnav a.active {
+.trends-subnav a.active,
+.section-subnav a.active {
   background: var(--accent-soft);
   color: var(--accent-hover);
+}
+
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.check-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.agent-card {
+  text-decoration: none;
+  color: inherit;
 }
 
 .trend-grid {

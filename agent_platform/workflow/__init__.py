@@ -1,0 +1,60 @@
+"""Reusable workflow engine public surface."""
+
+from agent_platform.workflow.engine import WorkflowEngine, validate_definition
+from agent_platform.workflow.errors import (
+    CapabilityFailure,
+    CapabilityRejected,
+    ExecutionNotFound,
+    InvalidDefinition,
+    InvalidExecutionState,
+    SecretRejected,
+    UnknownCapability,
+    WorkflowError,
+)
+from agent_platform.workflow.registry import BLOCKED_CAPABILITY_NAMES, CapabilityCall, CapabilityRegistry
+from agent_platform.workflow.types import (
+    ConditionOperator,
+    ExecutionStatus,
+    StepCondition,
+    StepDependency,
+    StepInput,
+    StepOutput,
+    StepRetryPolicy,
+    StepStatus,
+    StepTimeout,
+    StepType,
+    WorkflowDefinition,
+    WorkflowExecution,
+    WorkflowExecutionStep,
+    WorkflowStep,
+)
+
+__all__ = [
+    "BLOCKED_CAPABILITY_NAMES",
+    "CapabilityCall",
+    "CapabilityFailure",
+    "CapabilityRegistry",
+    "CapabilityRejected",
+    "ConditionOperator",
+    "ExecutionNotFound",
+    "ExecutionStatus",
+    "InvalidDefinition",
+    "InvalidExecutionState",
+    "SecretRejected",
+    "StepCondition",
+    "StepDependency",
+    "StepInput",
+    "StepOutput",
+    "StepRetryPolicy",
+    "StepStatus",
+    "StepTimeout",
+    "StepType",
+    "UnknownCapability",
+    "WorkflowDefinition",
+    "WorkflowEngine",
+    "WorkflowError",
+    "WorkflowExecution",
+    "WorkflowExecutionStep",
+    "WorkflowStep",
+    "validate_definition",
+]

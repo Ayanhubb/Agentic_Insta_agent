@@ -25,7 +25,7 @@ python -m pytest -m real_instagram
 python -m pytest -m integration
 ```
 
-`real_deepseek` is defined and excluded from the default run. No test is marked with it. A live DeepSeek call is not required. DeepSeek itself is **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. `real_openai` is the same kind of opt-in for OpenAI and is also excluded by default. Latest default run: 421 passed, 4 skipped (Meta credential gates), 2 deselected (`real_openai`). Frontend: 39 tests passed. `npm run build` succeeded.
+`real_deepseek` is defined and excluded from the default run. No test is marked with it. A live DeepSeek call is not required. DeepSeek itself is **IMPLEMENTED — NOT CONFIGURED** while `DEEPSEEK_API_KEY` is empty. `real_openai` is the same kind of opt-in for OpenAI and is also excluded by default. Default run on 2026-09-25, project virtualenv: **564 passed, 4 skipped, 568 collected**. 2 `real_openai` tests were not run. Frontend: **47 passed**. `npm run build` (`tsc` and Vite) succeeded. Use `.venv\Scripts\python.exe`. The base Anaconda interpreter does not have `openai` installed.
 
 ## What the default suite covers
 
@@ -43,6 +43,7 @@ python -m pytest -m integration
 | Instagram Graph, mocked | `test_instagram_media.py`, `test_instagram_verifier.py`, `test_instagram_intelligence.py`, `test_instagram_agent_integration.py` |
 | Canva, mocked | `test_canva_mcp.py` |
 | Wiring | `test_integration_wiring.py` |
+| Agent platform | `test_agent_runtime.py`, `test_agent_runtime_boundaries.py`, `test_agent_builder_api.py`, `test_workflow_engine.py`, `test_policy_approval.py`, `test_trigger_platform.py`, `test_model_registry.py`, `test_platform_tool_registry.py`, `test_platform_knowledge.py`, `test_platform_assets.py`, `test_instagram_reference_agent.py` |
 
 ## Frontend
 

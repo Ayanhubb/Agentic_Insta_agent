@@ -63,6 +63,10 @@ export const API = {
   },
   aiStatus: "/api/v1/ai/status",
   mcpStatus: "/api/v1/mcp/status",
+  platformAgents: {
+    list: "/api/v1/agents",
+    one: (id: string) => `/api/v1/agents/${encodeURIComponent(id)}`,
+  },
   trends: {
     account: "/api/v1/trends/account",
     research: "/api/v1/trends/research",

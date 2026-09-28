@@ -15,4 +15,6 @@ Alembic versions live in `db/migrations/versions/`. Startup also calls `init_db`
 
 `scripts/init_db.py` is a manual initializer. It is not a seventh migration.
 
+There is no revision for agent definitions, platform knowledge documents, platform asset records, workflow executions, or trigger state. Those stores are process memory. `create_app` calls `init_db` (`create_all`) and does not run Alembic. On 2026-09-25, `upgrade head` on an empty SQLite file matched `Base.metadata`: 29 tables, head `006_trend_intelligence`.
+
 Downgrade behavior is defined per revision file. Do not assume a downgrade drops data you still need; read that file before running it.

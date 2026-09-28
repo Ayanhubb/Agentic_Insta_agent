@@ -2,6 +2,15 @@
 
 Documentation history for this repository. Application code was not changed for the 2026-09-24 documentation updates.
 
+## 2026-09-25 — Agent platform docs aligned with the tree
+
+The proposal pages still said agent configuration, the runtime, and the registries did not exist. Those packages are in the tree and are **PARTIAL**: in memory or library-only, not the live publish path, and not in Alembic. Updated:
+
+- [README](../README.md) now lists the platform pages and points at [the final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
+- [Architecture](../ARCHITECTURE.md), [API reference](../API/API_REFERENCE.md), [Frontend](../FRONTEND/FRONTEND.md), [Testing](../TESTING/TESTING.md), [Migrations](../DATABASE/MIGRATIONS.md), and [Security](../SECURITY/SECURITY.md) name the new routes and the publishing boundary.
+- [Builder API](../AGENT_PLATFORM_API.md) no longer says the React client calls `/api/v1/platform/agents`. It calls `/api/v1/agents`.
+- Proposal pages carry a status note. The 2026-09-24 reports below stay historical.
+
 ## 2026-09-24 — Provider and asset status
 
 Pages under `md/` were aligned with HEAD `8ad7dc4`:

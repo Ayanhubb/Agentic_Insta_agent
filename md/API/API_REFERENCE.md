@@ -38,6 +38,17 @@ Owner scope means the row's `user_id` must equal the session user. Foreign ids r
 
 `api/platform_routes.py` also declares `GET /api/v1/admin/users` (`list_active`). The auth router is mounted first, so Starlette serves the auth handler. The platform handler is unreachable. Status: **PARTIAL** (duplicate registration).
 
+## Agent builder
+
+Two routers, two in-memory stores, same session user. Neither writes Alembic tables. Neither calls Meta. Detail: [Agent platform API](../AGENT_PLATFORM_API.md). Current limits: [final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
+
+| Prefix | Module | Store |
+| --- | --- | --- |
+| `/api/v1/agents` | `api/agent_routes.py` | `AgentBuilderService`. This is the API the React builder calls |
+| `/api/v1/platform/agents` | `api/agent_builder_routes.py` | `AgentBuilderStore`. Not used by the React client |
+
+Both require `require_password_ok`. Another tenant's agent is 404. `instagram_marketing` is read-only on `/api/v1/agents`. `POST .../execute` is a test run and does not publish.
+
 ## Publish and tasks — `api/routes.py`
 
 | Method | Path | Auth | Request | Response |

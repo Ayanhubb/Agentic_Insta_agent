@@ -11,7 +11,7 @@ services:
       PORT: 8000
       DATABASE_URL: sqlite:////app/storage/app.db
       SCHEDULER_ENABLED: "true"
-      JWT_SECRET: ${JWT_SECRET:-docker-dev-jwt-secret-change-me-32b}
+      JWT_SECRET: ${JWT_SECRET:-}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-docker-dev-token-encryption-key}
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@yottolabs.com}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-12345}

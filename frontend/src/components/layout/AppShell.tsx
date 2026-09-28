@@ -23,6 +23,9 @@ const NAV = [
     { to: "/ai-settings", label: "AI settings" },
     { to: "/mcp", label: "MCP" },
   ]},
+  { section: "Platform", items: [
+    { to: "/agents", label: "Agents" },
+  ]},
   { section: "Account", items: [
     { to: "/business", label: "Business" },
     { to: "/instagram", label: "Instagram" },

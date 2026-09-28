@@ -16,7 +16,7 @@ JWT HS256 (`auth/tokens.py`), cookie `access_token` or Bearer, server-side `sess
 
 ## Publishing boundary
 
-MCP, DeepSeek, OpenAI, and Canva cannot call `media_publish`. The allowlist check runs before any handler. The Instagram Agent is the only registered publisher. See [Architecture](../ARCHITECTURE.md).
+MCP, DeepSeek, OpenAI, Canva, the trend stack, the agent runtime, and the React builder cannot call `media_publish`. The allowlist check runs before any handler. The Instagram Agent is the only registered publisher. The scheduler campaign path calls `PublicationService`, which runs that agent. See [Architecture](../ARCHITECTURE.md) and [the platform audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
 
 Canva access and refresh tokens stay in the encrypted `canva_connections` row and in the adapter's MCP session. They are not sent to DeepSeek, OpenAI, the React app, MCP tool results, or log lines. A Canva export download does not attach the access token. Canva tool names that contain `publish` or `instagram` are refused before the remote call.
 
@@ -34,3 +34,6 @@ Public media URLs are unauthenticated by design. They are not a directory listin
 | `JWT_SECRET` default `dev-change-me` when unset | PARTIAL. Replace before any shared deployment |
 | Cookie `Secure` default false | Expected for local HTTP. Set `JWT_COOKIE_SECURE=true` behind HTTPS |
 | Instagram OAuth | NOT IMPLEMENTED. The user pastes a token |
+| CSRF token | NOT IMPLEMENTED. Cookie is `HttpOnly` and `SameSite=Lax`. Mutations have no separate CSRF check |
+| Agent configuration durability | NOT IMPLEMENTED. `/api/v1/agents` and `/api/v1/platform/agents` keep records in process memory |
+| Agent routes | IMPLEMENTED and session-scoped. They reject publishing tool names. Execute is a test and does not call Meta |

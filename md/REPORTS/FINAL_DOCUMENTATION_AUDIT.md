@@ -1,6 +1,8 @@
 # Final documentation audit
 
-Date: 2026-09-24. The inventory below was taken at git `6c69ffe`. Later the same day, HEAD `8ad7dc4` was documented again. Where this page still says the scheduler default is `openai`, or lists the process Meta token and missing provider keys as unfinished code, those sentences are superseded by [Final integration audit](FINAL_INTEGRATION_AUDIT.md) and the 2026-09-24 provider section in [Changelog](CHANGELOG.md). FastAPI version `2.0.0`.
+Date: 2026-09-24. The inventory below was taken at git `6c69ffe`. It does not include the later `AGENT_PLATFORM_*.md` pages. Those are indexed in [the documentation README](../README.md). Current platform status is [the final audit](../AGENT_PLATFORM_FINAL_AUDIT.md).
+
+Later the same day, HEAD `8ad7dc4` was documented again. Where this page still says the scheduler default is `openai`, or lists the process Meta token and missing provider keys as unfinished code, those sentences are superseded by [Final integration audit](FINAL_INTEGRATION_AUDIT.md) and the 2026-09-24 provider section in [Changelog](CHANGELOG.md). FastAPI version `2.0.0`.
 
 ## Documentation inventory
 

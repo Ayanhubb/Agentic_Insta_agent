@@ -17,5 +17,6 @@ export { adminApi } from "./admin";
 export { settingsApi } from "./settings";
 export { brandApi, productsApi, assetMediaUrl } from "./catalog";
 export { providersApi } from "./providers";
+export { agentsApi } from "./agents";
 export { getAccessToken, setAccessToken, clearAccessToken } from "./session";
 export { onUnauthorized } from "./client";

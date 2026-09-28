@@ -2,6 +2,8 @@
 
 Date: 2026-09-24. Git HEAD `8ad7dc4`. Working tree was clean before this report. No application code was changed. No API keys or logos were inserted.
 
+This report is the studio audit from 2026-09-24. The agent platform that landed afterward is audited in [AGENT_PLATFORM_FINAL_AUDIT.md](../AGENT_PLATFORM_FINAL_AUDIT.md). Do not read this page as the status of those packages.
+
 Ratings:
 
 | Rating | Meaning |

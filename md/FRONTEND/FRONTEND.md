@@ -4,6 +4,8 @@ Related: [API reference](../API/API_REFERENCE.md), [Authentication](../API/AUTHE
 
 React 19 app in `frontend/`. Package name `agentic-frontend`, version `1.0.0`. Router: `react-router-dom` 7. Bundler: Vite 7. Tests: Vitest and Testing Library (`npm test`).
 
+Agent builder behavior and its gaps are in [Agent platform frontend](../AGENT_PLATFORM_FRONTEND.md). The builder does not call Meta. The studio Instagram page still posts to `/api/v1/instagram/publish`, which runs the Instagram Agent.
+
 The UI does not receive `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or Canva secrets. Both provider keys are **IMPLEMENTED — NOT CONFIGURED** on the server. API calls go through `frontend/src/services/api/client.ts` with credentials so the `access_token` cookie is sent. React does not call `graph.facebook.com` or `graph.instagram.com`. Instagram publish posts to `/api/v1/instagram/publish`, and the Instagram Agent is the only Meta publisher. Brand and product pages can upload a logo or product image later. Those production files are not uploaded yet. The UI must not treat a generated picture as the company logo when MCP reports the logo missing.
 
 ## Routes (`frontend/src/App.tsx`)
@@ -32,6 +34,9 @@ The UI does not receive `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or Canva secrets. 
 | `/trends/reports` | `ReportsPage` | signed in |
 | `/campaigns` | `CampaignsPage` | signed in |
 | `/instagram` | `InstagramPage` | signed in |
+| `/agents` | `AgentsListPage` | signed in |
+| `/agents/new` | `AgentNewPage` | signed in |
+| `/agents/:id` | Agent overview, and nested workflow, tools, models, assets, knowledge, triggers, approval, executions | signed in |
 | `/settings` | `SettingsPage` | signed in |
 | `/admin` | `AdminPage` | signed in and admin |
 | other | `NotFoundPage` | |

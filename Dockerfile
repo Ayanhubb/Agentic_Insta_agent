@@ -20,6 +20,10 @@ COPY scheduler ./scheduler
 COPY services ./services
 COPY tools ./tools
 COPY backend ./backend
+COPY agent_builder ./agent_builder
+COPY agent_runtime ./agent_runtime
+COPY agent_platform ./agent_platform
+COPY instagram_reference ./instagram_reference
 COPY config.py main.py alembic.ini ./
 
 RUN mkdir -p storage tmp input output data \

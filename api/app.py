@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -10,10 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from agent_builder.service import AgentBuilderService
 from ai.image_generator import select_image_provider
 from ai.llm_client import log_provider_selection, select_reasoning_provider
 from agent.agent import InstagramAgent
 from agent.instagram_tasks import bind_publication_gateway
+from api.agent_builder_routes import router as agent_builder_router
+from api.agent_routes import router as agent_router
 from api.asset_routes import router as asset_router
 from api.canva_routes import router as canva_router
 from backend.integrations.canva import CanvaAdapter
@@ -21,6 +25,7 @@ from api.auth_routes import admin_router, router as auth_router
 from db.repositories import SessionRepository, UserRepository
 from api.middleware import RequestContextMiddleware
 from api.platform_routes import router as platform_router
+from backend.platform.builder.store import AgentBuilderStore
 from api.intelligence_routes import router as intelligence_router
 from api.trend_routes import router as trend_router
 from api.routes import create_router
@@ -30,6 +35,7 @@ from auth.tokens import COOKIE_NAME, decode_access_token
 from config import Settings, get_settings
 from db.session import bind_runtime, create_engine_from_settings, init_db, session_factory
 from models.errors import AppError, ErrorCode
+from scheduler.leader import SchedulerLeader
 from scheduler.scheduler import AutomationRunner, scheduler_loop
 from services.clock import Clock
 from services.instagram_client import InstagramClient, InstagramGraphClient
@@ -37,6 +43,8 @@ from services.logging import configure_logging, redact_text
 from services.media_storage import MediaStorageService
 from services.publication import PublicationGateway
 from services.publication_store import InMemoryPublicationStore
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(
@@ -94,12 +102,28 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         task = None
+        leader = None
         if settings.scheduler_enabled:
-            task = asyncio.create_task(scheduler_loop(runner, settings.scheduler_interval_seconds, stop_event))
-        yield
-        stop_event.set()
-        if task is not None:
-            task.cancel()
+            leader = SchedulerLeader(settings.temp_dir / "scheduler.leader.lock")
+            if leader.try_acquire():
+                task = asyncio.create_task(scheduler_loop(runner, settings.scheduler_interval_seconds, stop_event))
+            else:
+                logger.warning(
+                    "Scheduler lock is held by another process. This worker will not run the scheduler."
+                )
+                leader = None
+        try:
+            yield
+        finally:
+            stop_event.set()
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            if leader is not None:
+                leader.release()
 
     app = FastAPI(
         title="Instagram Agentic AI",
@@ -120,6 +144,8 @@ def create_app(
         return InstagramAgent(settings, instagram_client=client or InstagramGraphClient(settings), on_change=on_change)
 
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
+    app.include_router(agent_builder_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(platform_router, prefix="/api/v1")
     app.include_router(asset_router, prefix="/api/v1")
@@ -209,6 +235,8 @@ def create_app(
     app.state.clock = clock
     app.state.automation_runner = runner
     app.state.current_user_provider = current_user_provider
+    app.state.agent_builder = AgentBuilderService(settings, session_factory=factory)
+    app.state.platform_agents = AgentBuilderStore()
     publication_gateway = PublicationGateway(
         settings,
         publication_store or InMemoryPublicationStore(),

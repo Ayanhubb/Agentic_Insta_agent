@@ -20,6 +20,20 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
+  AgentApprovalPage,
+  AgentAssetsPage,
+  AgentExecutionsPage,
+  AgentKnowledgePage,
+  AgentLayout,
+  AgentModelsPage,
+  AgentNewPage,
+  AgentOverviewPage,
+  AgentToolsPage,
+  AgentTriggersPage,
+  AgentWorkflowPage,
+  AgentsListPage,
+} from "./pages/agents";
+import {
   AccountTrendsPage,
   OpportunitiesPage,
   ReportsPage,
@@ -164,6 +178,40 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/agents"
+        element={
+          <ProtectedRoute>
+            <AgentsListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agents/new"
+        element={
+          <ProtectedRoute>
+            <AgentNewPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agents/:agentId"
+        element={
+          <ProtectedRoute>
+            <AgentLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AgentOverviewPage />} />
+        <Route path="workflow" element={<AgentWorkflowPage />} />
+        <Route path="tools" element={<AgentToolsPage />} />
+        <Route path="models" element={<AgentModelsPage />} />
+        <Route path="assets" element={<AgentAssetsPage />} />
+        <Route path="knowledge" element={<AgentKnowledgePage />} />
+        <Route path="triggers" element={<AgentTriggersPage />} />
+        <Route path="approval" element={<AgentApprovalPage />} />
+        <Route path="executions" element={<AgentExecutionsPage />} />
+      </Route>
       <Route
         path="/settings"
         element={
